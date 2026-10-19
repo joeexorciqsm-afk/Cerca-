@@ -9,8 +9,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cerca.app.viewmodel.AuthViewModel
 
 /**
- * Pantalla principal tras iniciar sesión. Tiene dos pestañas:
+ * Pantalla principal tras iniciar sesión. Tiene tres pestañas:
  * - Contactos (primera pestaña): los familiares vinculados.
+ * - Voz: comandos de voz (reconocer frases y responder con voz).
  * - Perfil: código de familia, vincular y cerrar sesión.
  */
 @Composable
@@ -32,6 +33,12 @@ fun MainScreen(
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
+                    icon = { Text("🎤") },
+                    label = { Text("Voz") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
                     icon = { Text("👤") },
                     label = { Text("Perfil") }
                 )
@@ -45,6 +52,7 @@ fun MainScreen(
         ) {
             when (selectedTab) {
                 0 -> ContactsScreen()
+                1 -> VoiceScreen()
                 else -> HomeScreen(
                     viewModel = authViewModel,
                     onLogout = onLogout
