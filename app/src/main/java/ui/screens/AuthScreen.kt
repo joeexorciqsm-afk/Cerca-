@@ -13,7 +13,10 @@ fun AuthScreen(
     var showSignup by remember { mutableStateOf(false) }
 
     if (authState is AuthState.Authenticated) {
-        HomeScreen(onLogout = { viewModel.logout() })
+        HomeScreen(
+            viewModel = viewModel,
+            onLogout = { viewModel.logout() }
+        )
     } else {
         if (showSignup) {
             SignupScreen(
