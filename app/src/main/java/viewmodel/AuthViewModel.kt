@@ -1,5 +1,6 @@
 package com.cerca.app.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.cerca.app.model.User
 import com.google.firebase.auth.FirebaseAuth
@@ -9,7 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 
 class AuthViewModel : ViewModel() {
     private val firebaseAuth = FirebaseAuth.getInstance()
-    private val firestore = FirebaseFirestore.getInstance()
+    // Firestore se crea de forma perezosa para que no bloquee el arranque ni el auth.
+    private val firestore by lazy { FirebaseFirestore.getInstance() }
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Unauthenticated)
     val authState: StateFlow<AuthState> = _authState
@@ -28,11 +30,14 @@ class AuthViewModel : ViewModel() {
         }
 
         _authState.value = AuthState.Loading
+        Log.d("AuthViewModel", "login: iniciando sesión para $email")
         firebaseAuth.signInWithEmailAndPassword(email.trim(), password)
             .addOnSuccessListener {
+                Log.d("AuthViewModel", "login: éxito")
                 _authState.value = AuthState.Authenticated
             }
             .addOnFailureListener { exception ->
+                Log.w("AuthViewModel", "login: error - ${exception.message}")
                 _authState.value = AuthState.Error(exception.message ?: "Error al iniciar sesión")
             }
     }
@@ -48,22 +53,35 @@ class AuthViewModel : ViewModel() {
         }
 
         _authState.value = AuthState.Loading
+        Log.d("AuthViewModel", "signup: creando cuenta para $email")
         firebaseAuth.createUserWithEmailAndPassword(email.trim(), password)
             .addOnSuccessListener { result ->
                 val uid = result.user?.uid ?: ""
-                val user = User(id = uid, email = email.trim(), name = name.trim())
-                // Guardamos el perfil en Firestore (base para la vinculación familiar)
-                firestore.collection("users").document(uid)
-                    .set(user)
-                    .addOnSuccessListener {
-                        _authState.value = AuthState.Authenticated
-                    }
-                    .addOnFailureListener { exception ->
-                        _authState.value =
-                            AuthState.Error(exception.message ?: "Error al guardar el perfil")
-                    }
+                Log.d("AuthViewModel", "signup: cuenta creada (uid=$uid), entrando a la app")
+
+                // La cuenta ya existe en Authentication: entramos a la app enseguida
+                // sin esperar a Firestore (si Firestore falla, no bloquea el registro).
+                _authState.value = AuthState.Authenticated
+
+                // Guardamos el perfil en Firestore en segundo plano. Lo envolvemos en
+                // try/catch para que NADA relacionado con Firestore pueda bloquear
+                // ni afectar el flujo de autenticación.
+                try {
+                    val user = User(id = uid, email = email.trim(), name = name.trim())
+                    firestore.collection("users").document(uid)
+                        .set(user)
+                        .addOnSuccessListener {
+                            Log.d("AuthViewModel", "signup: perfil guardado en Firestore")
+                        }
+                        .addOnFailureListener { exception ->
+                            Log.w("AuthViewModel", "signup: no se pudo guardar el perfil - ${exception.message}")
+                        }
+                } catch (e: Exception) {
+                    Log.w("AuthViewModel", "signup: error al acceder a Firestore - ${e.message}")
+                }
             }
             .addOnFailureListener { exception ->
+                Log.w("AuthViewModel", "signup: error - ${exception.message}")
                 _authState.value = AuthState.Error(exception.message ?: "Error al registrarse")
             }
     }
