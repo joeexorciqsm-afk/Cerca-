@@ -24,6 +24,10 @@ class AuthViewModel : ViewModel() {
     private val _familyMessage = MutableStateFlow<String?>(null)
     val familyMessage: StateFlow<String?> = _familyMessage
 
+    // Teléfono del usuario actual (para que la familia pueda llamarle).
+    private val _phone = MutableStateFlow("")
+    val phone: StateFlow<String> = _phone
+
     init {
         // Si ya hay sesion iniciada, entramos directo
         if (firebaseAuth.currentUser != null) {
@@ -154,6 +158,7 @@ class AuthViewModel : ViewModel() {
         firestore.collection("users").document(uid)
             .get()
             .addOnSuccessListener { doc ->
+                _phone.value = doc.getString("phone") ?: ""
                 val code = doc.getString("familyCode")
                 if (!code.isNullOrBlank()) {
                     _familyCode.value = code
@@ -187,10 +192,26 @@ class AuthViewModel : ViewModel() {
         _familyMessage.value = null
     }
 
+    /** Guarda el teléfono del usuario para que su familia pueda llamarle. */
+    fun savePhone(newPhone: String) {
+        val uid = firebaseAuth.currentUser?.uid ?: return
+        val clean = newPhone.trim()
+        _phone.value = clean
+        firestore.collection("users").document(uid)
+            .update("phone", clean)
+            .addOnSuccessListener {
+                _familyMessage.value = "Teléfono guardado"
+            }
+            .addOnFailureListener { exception ->
+                _familyMessage.value = exception.message ?: "No se pudo guardar el teléfono"
+            }
+    }
+
     fun logout() {
         firebaseAuth.signOut()
         _familyCode.value = ""
         _familyMessage.value = null
+        _phone.value = ""
         _authState.value = AuthState.Unauthenticated
     }
 

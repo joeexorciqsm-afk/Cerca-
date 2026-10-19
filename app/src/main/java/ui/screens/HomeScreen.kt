@@ -1,6 +1,8 @@
 package com.cerca.app.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,16 +21,21 @@ fun HomeScreen(
     val email = FirebaseAuth.getInstance().currentUser?.email ?: ""
     val familyCode by viewModel.familyCode.collectAsState()
     val familyMessage by viewModel.familyMessage.collectAsState()
+    val phone by viewModel.phone.collectAsState()
 
     var codeInput by remember { mutableStateOf("") }
+    // Sincronizamos el campo editable con el teléfono guardado.
+    var phoneInput by remember(phone) { mutableStateOf(phone) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Spacer(modifier = Modifier.height(16.dp))
+
         Text(
             text = "¡Bienvenido a Cerca!",
             style = MaterialTheme.typography.headlineMedium
@@ -68,6 +75,29 @@ fun HomeScreen(
                     textAlign = TextAlign.Center
                 )
             }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Teléfono del usuario (para que la familia pueda llamarle).
+        Text(
+            text = "Mi teléfono",
+            style = MaterialTheme.typography.titleMedium
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = phoneInput,
+            onValueChange = { phoneInput = it },
+            label = { Text("Número de teléfono") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = { viewModel.savePhone(phoneInput) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Guardar teléfono")
         }
 
         Spacer(modifier = Modifier.height(24.dp))
