@@ -143,16 +143,42 @@ class AuthViewModel : ViewModel() {
             }
     }
 
-    /** Carga el código de familia del usuario actual desde Firestore. */
+    /**
+     * Carga el código de familia del usuario actual desde Firestore.
+     * Si el usuario no tiene código todavía (por ejemplo, cuentas creadas antes
+     * de esta funcionalidad), le genera uno y lo guarda.
+     */
     private fun loadFamilyCode() {
-        val uid = firebaseAuth.currentUser?.uid ?: return
+        val user = firebaseAuth.currentUser ?: return
+        val uid = user.uid
         firestore.collection("users").document(uid)
             .get()
             .addOnSuccessListener { doc ->
-                _familyCode.value = doc.getString("familyCode") ?: ""
+                val code = doc.getString("familyCode")
+                if (!code.isNullOrBlank()) {
+                    _familyCode.value = code
+                } else {
+                    // No tiene código: le creamos uno y lo guardamos (auto-reparación).
+                    assignFamilyCodeIfMissing(uid, user.email ?: "", doc.getString("name") ?: "")
+                }
             }
             .addOnFailureListener { exception ->
                 Log.w("AuthViewModel", "No se pudo cargar el código de familia: ${exception.message}")
+            }
+    }
+
+    /** Crea un código de familia para un usuario que no lo tiene y lo guarda en Firestore. */
+    private fun assignFamilyCodeIfMissing(uid: String, email: String, name: String) {
+        val code = generateFamilyCode()
+        _familyCode.value = code
+        val user = User(id = uid, email = email, name = name, familyCode = code)
+        firestore.collection("users").document(uid)
+            .set(user)
+            .addOnSuccessListener {
+                Log.d("AuthViewModel", "Código de familia creado para cuenta sin código")
+            }
+            .addOnFailureListener { exception ->
+                Log.w("AuthViewModel", "No se pudo asignar el código de familia: ${exception.message}")
             }
     }
 
