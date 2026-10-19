@@ -19,32 +19,61 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.cerca.app.model.User
 import com.cerca.app.viewmodel.ContactsViewModel
 
 @Composable
 fun ContactsScreen(
     viewModel: ContactsViewModel = viewModel()
 ) {
-    val contacts by viewModel.contacts.collectAsState()
+    val familyContacts by viewModel.familyContacts.collectAsState()
+    val myContacts by viewModel.myContacts.collectAsState()
     val loading by viewModel.loading.collectAsState()
+    val message by viewModel.message.collectAsState()
     val context = LocalContext.current
+
+    var showAddDialog by remember { mutableStateOf(false) }
 
     // Cargamos los contactos al abrir la pantalla.
     LaunchedEffect(Unit) {
         viewModel.loadContacts()
     }
 
+    fun call(phone: String) {
+        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
+        context.startActivity(intent)
+    }
+
+    val isEmpty = familyContacts.isEmpty() && myContacts.isEmpty()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text(
-            text = "Contactos",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Contactos",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Button(onClick = { showAddDialog = true }) {
+                Text("➕ Agregar")
+            }
+        }
+
+        // Mensaje de confirmación/error al agregar.
+        if (message != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = message!!,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -54,11 +83,11 @@ fun ContactsScreen(
                     CircularProgressIndicator()
                 }
             }
-            contacts.isEmpty() -> {
+            isEmpty -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = "Aún no tienes familiares vinculados.\n" +
-                            "Comparte tu código de familia desde la pestaña Perfil.",
+                        text = "Aún no tienes contactos.\n" +
+                            "Pulsa \"Agregar\" para añadir un número, o vincula a tu familia desde Perfil.",
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.Center
                     )
@@ -66,24 +95,85 @@ fun ContactsScreen(
             }
             else -> {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(contacts) { contact ->
+                    // Familiares vinculados.
+                    items(familyContacts) { family ->
                         ContactCard(
-                            contact = contact,
-                            onCall = { phone ->
-                                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
-                                context.startActivity(intent)
-                            }
+                            name = family.name,
+                            phone = family.phone,
+                            onCall = { call(it) }
+                        )
+                    }
+                    // Contactos agregados manualmente.
+                    items(myContacts) { c ->
+                        ContactCard(
+                            name = c.name,
+                            phone = c.phone,
+                            onCall = { call(it) }
                         )
                     }
                 }
             }
         }
     }
+
+    if (showAddDialog) {
+        AddContactDialog(
+            onDismiss = { showAddDialog = false },
+            onAdd = { name, phone ->
+                viewModel.addContact(name, phone)
+                showAddDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun AddContactDialog(
+    onDismiss: () -> Unit,
+    onAdd: (String, String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Agregar contacto") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Nombre") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Número de teléfono") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onAdd(name, phone) }) {
+                Text("Agregar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
 }
 
 @Composable
 private fun ContactCard(
-    contact: User,
+    name: String,
+    phone: String,
     onCall: (String) -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -102,7 +192,7 @@ private fun ContactCard(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = contact.name.trim().firstOrNull()?.uppercase() ?: "?",
+                    text = name.trim().firstOrNull()?.uppercase() ?: "?",
                     color = Color.White,
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold
@@ -114,20 +204,20 @@ private fun ContactCard(
             // Nombre y teléfono, con texto grande y legible.
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = contact.name.ifBlank { "Sin nombre" },
+                    text = name.ifBlank { "Sin nombre" },
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = contact.phone.ifBlank { "Sin teléfono" },
+                    text = phone.ifBlank { "Sin teléfono" },
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             // Botón de llamar grande y legible.
-            if (contact.phone.isNotBlank()) {
-                Button(onClick = { onCall(contact.phone) }) {
+            if (phone.isNotBlank()) {
+                Button(onClick = { onCall(phone) }) {
                     Text(
                         text = "📞 Llamar",
                         style = MaterialTheme.typography.titleMedium
