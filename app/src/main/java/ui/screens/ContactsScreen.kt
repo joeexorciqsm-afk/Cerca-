@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Call
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -127,16 +125,12 @@ private fun ContactCard(
                 )
             }
 
-            // Botón de llamar grande.
+            // Botón de llamar grande y legible.
             if (contact.phone.isNotBlank()) {
-                FilledIconButton(
-                    onClick = { onCall(contact.phone) },
-                    modifier = Modifier.size(56.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Call,
-                        contentDescription = "Llamar a ${contact.name}",
-                        modifier = Modifier.size(28.dp)
+                Button(onClick = { onCall(contact.phone) }) {
+                    Text(
+                        text = "📞 Llamar",
+                        style = MaterialTheme.typography.titleMedium
                     )
                 }
             }
