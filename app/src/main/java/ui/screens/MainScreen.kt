@@ -17,9 +17,11 @@ import com.cerca.app.viewmodel.AuthViewModel
 @Composable
 fun MainScreen(
     authViewModel: AuthViewModel = viewModel(),
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    startOnVoice: Boolean = false
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
+    // Si se abrió desde el atajo de voz, arrancamos en la pestaña Voz (índice 1).
+    var selectedTab by remember { mutableStateOf(if (startOnVoice) 1 else 0) }
 
     Scaffold(
         bottomBar = {

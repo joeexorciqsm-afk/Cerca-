@@ -7,7 +7,8 @@ import com.cerca.app.viewmodel.AuthViewModel
 
 @Composable
 fun AuthScreen(
-    viewModel: AuthViewModel = viewModel()
+    viewModel: AuthViewModel = viewModel(),
+    startOnVoice: Boolean = false
 ) {
     val authState by viewModel.authState.collectAsState()
     var showSignup by remember { mutableStateOf(false) }
@@ -15,7 +16,8 @@ fun AuthScreen(
     if (authState is AuthState.Authenticated) {
         MainScreen(
             authViewModel = viewModel,
-            onLogout = { viewModel.logout() }
+            onLogout = { viewModel.logout() },
+            startOnVoice = startOnVoice
         )
     } else {
         if (showSignup) {

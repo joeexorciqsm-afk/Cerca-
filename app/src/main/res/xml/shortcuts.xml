@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Atajo "Voz": abre la app directamente en la pestaña de comandos de voz. -->
+    <shortcut
+        android:shortcutId="voz"
+        android:enabled="true"
+        android:icon="@drawable/ic_family"
+        android:shortcutShortLabel="@string/shortcut_voice_short"
+        android:shortcutLongLabel="@string/shortcut_voice_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.cerca.app"
+            android:targetClass="com.cerca.app.MainActivity">
+            <extra
+                android:name="start_voice"
+                android:value="true" />
+        </intent>
+    </shortcut>
+</shortcuts>

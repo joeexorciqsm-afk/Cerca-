@@ -3,6 +3,7 @@ package com.cerca.app.ui.screens
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -21,13 +22,25 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.cerca.app.viewmodel.ContactsViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
 @Composable
-fun VoiceScreen() {
+fun VoiceScreen(
+    contactsViewModel: ContactsViewModel = viewModel()
+) {
     val context = LocalContext.current
+
+    val familyContacts by contactsViewModel.familyContacts.collectAsState()
+    val myContacts by contactsViewModel.myContacts.collectAsState()
+
+    // Cargamos los contactos para poder llamarlos por voz.
+    LaunchedEffect(Unit) {
+        contactsViewModel.loadContacts()
+    }
 
     var heard by remember { mutableStateOf("") }      // lo que reconoció
     var answer by remember { mutableStateOf("") }     // la respuesta de la app
@@ -45,7 +58,7 @@ fun VoiceScreen() {
         engine = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 engine?.language = Locale("es", "ES")
-                engine?.setSpeechRate(0.95f) // un poco más lento = más claro
+                engine?.setSpeechRate(0.95f)
             }
         }
         engine
@@ -60,6 +73,79 @@ fun VoiceScreen() {
     fun speak(text: String) {
         answer = text
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "respuesta")
+    }
+
+    // Realiza la llamada abriendo el marcador con el número.
+    fun call(phone: String) {
+        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    }
+
+    // Lista unificada de contactos (nombre -> teléfono) para buscar por voz.
+    fun contactosDisponibles(): List<Pair<String, String>> {
+        val delaFamilia = familyContacts.map { it.name to it.phone }
+        val manuales = myContacts.map { it.name to it.phone }
+        return (delaFamilia + manuales).filter { it.second.isNotBlank() }
+    }
+
+    // Interpreta el comando. Devuelve la respuesta hablada y, si aplica, hace la llamada.
+    fun procesarComando(frase: String): String {
+        val texto = frase.lowercase().trim()
+
+        // Comando de llamada: "llama a X", "llamar a X", "marca a X".
+        val gatillos = listOf("llama a ", "llamar a ", "llámale a ", "marca a ", "llamar ", "llama ")
+        val gatillo = gatillos.firstOrNull { texto.contains(it) }
+        if (gatillo != null) {
+            val nombreBuscado = texto.substringAfter(gatillo).trim()
+            if (nombreBuscado.isBlank()) {
+                return "¿A quién quieres llamar?"
+            }
+            val contactos = contactosDisponibles()
+            // Busca por coincidencia: el nombre del contacto empieza o contiene lo dicho.
+            val encontrado = contactos.firstOrNull {
+                val n = it.first.lowercase()
+                n == nombreBuscado || n.startsWith(nombreBuscado) || n.contains(nombreBuscado)
+            }
+            return if (encontrado != null) {
+                call(encontrado.second)
+                "Llamando a ${encontrado.first}"
+            } else {
+                "No encontré a $nombreBuscado en tus contactos"
+            }
+        }
+
+        return when {
+            texto.contains("hola") || texto.contains("buenos días") || texto.contains("buenas") ->
+                "¡Hola! Qué gusto escucharte."
+
+            texto.contains("hora") -> {
+                val hora = SimpleDateFormat("hh:mm a", Locale("es")).format(Calendar.getInstance().time)
+                "Son las $hora"
+            }
+
+            texto.contains("día") || texto.contains("fecha") -> {
+                val fecha = SimpleDateFormat("EEEE d 'de' MMMM", Locale("es"))
+                    .format(Calendar.getInstance().time)
+                "Hoy es $fecha"
+            }
+
+            texto.contains("contacto") -> {
+                val nombres = contactosDisponibles().joinToString(", ") { it.first }
+                if (nombres.isBlank()) "No tienes contactos con teléfono todavía"
+                else "Tus contactos son: $nombres"
+            }
+
+            texto.contains("gracias") -> "¡De nada! Para eso estoy."
+
+            texto.contains("ayuda") ->
+                "Puedes decir: llama a un nombre, qué hora es, qué día es, o mis contactos."
+
+            texto.isBlank() -> "No te entendí, inténtalo de nuevo."
+
+            else -> "Dijiste: $frase. Prueba diciendo: llama a un nombre."
+        }
     }
 
     // Reconocedor de voz.
@@ -87,7 +173,7 @@ fun VoiceScreen() {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val text = matches?.firstOrNull() ?: ""
                 heard = text
-                speak(responderComando(text))
+                speak(procesarComando(text))
             }
 
             override fun onError(error: Int) {
@@ -189,40 +275,12 @@ fun VoiceScreen() {
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Prueba diciendo:\n\"hola\", \"qué hora es\", \"qué día es\" o \"ayuda\"",
+            text = "Prueba diciendo:\n" +
+                "\"llama a [nombre]\", \"mis contactos\",\n" +
+                "\"qué hora es\", \"qué día es\" o \"ayuda\"",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
-    }
-}
-
-/** Lógica simple de comandos: reconoce frases y arma una respuesta. */
-private fun responderComando(frase: String): String {
-    val texto = frase.lowercase().trim()
-
-    return when {
-        texto.contains("hola") || texto.contains("buenos días") || texto.contains("buenas") ->
-            "¡Hola! Qué gusto escucharte."
-
-        texto.contains("hora") -> {
-            val hora = SimpleDateFormat("hh:mm a", Locale("es")).format(Calendar.getInstance().time)
-            "Son las $hora"
-        }
-
-        texto.contains("día") || texto.contains("fecha") -> {
-            val fecha = SimpleDateFormat("EEEE d 'de' MMMM", Locale("es"))
-                .format(Calendar.getInstance().time)
-            "Hoy es $fecha"
-        }
-
-        texto.contains("gracias") -> "¡De nada! Para eso estoy."
-
-        texto.contains("ayuda") ->
-            "Puedes decirme hola, preguntarme la hora o qué día es."
-
-        texto.isBlank() -> "No te entendí, inténtalo de nuevo."
-
-        else -> "Dijiste: $frase. Aún no sé responder a eso."
     }
 }
