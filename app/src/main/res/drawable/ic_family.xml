@@ -1,0 +1,95 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Ícono de familia en estilo línea (2 adultos abrazando a 2 niños). -->
+    <!-- Dibujado con trazos (stroke) sobre un viewport de 108x108. -->
+    <group android:scaleX="1.0" android:scaleY="1.0">
+
+        <!-- Cabeza adulto izquierdo -->
+        <path
+            android:pathData="M42,34 m-6,0 a6,6.5 0 1,0 12,0 a6,6.5 0 1,0 -12,0"
+            android:strokeColor="#2F3A3A"
+            android:strokeWidth="3.2"
+            android:fillColor="#00000000"
+            android:strokeLineCap="round" />
+
+        <!-- Cabeza adulto derecho -->
+        <path
+            android:pathData="M66,32 m-6.5,0 a6.5,7 0 1,0 13,0 a6.5,7 0 1,0 -13,0"
+            android:strokeColor="#2F3A3A"
+            android:strokeWidth="3.2"
+            android:fillColor="#00000000"
+            android:strokeLineCap="round" />
+
+        <!-- Cuerpos de los adultos: dos arcos que bajan y se curvan como brazos que abrazan -->
+        <path
+            android:pathData="M38,45
+                C30,48 26,58 28,68
+                C29,74 33,78 38,79"
+            android:strokeColor="#2F3A3A"
+            android:strokeWidth="3.4"
+            android:fillColor="#00000000"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+
+        <path
+            android:pathData="M70,43
+                C78,46 82,57 80,68
+                C79,74 75,78 70,79"
+            android:strokeColor="#2F3A3A"
+            android:strokeWidth="3.4"
+            android:fillColor="#00000000"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+
+        <!-- Arco superior que une a los dos adultos (hombros/forma de corazón) -->
+        <path
+            android:pathData="M45,44
+                C50,38 58,38 63,43"
+            android:strokeColor="#2F3A3A"
+            android:strokeWidth="3.4"
+            android:fillColor="#00000000"
+            android:strokeLineCap="round" />
+
+        <!-- Cabeza niño izquierdo -->
+        <path
+            android:pathData="M47,58 m-5,0 a5,5.3 0 1,0 10,0 a5,5.3 0 1,0 -10,0"
+            android:strokeColor="#2F3A3A"
+            android:strokeWidth="3.0"
+            android:fillColor="#00000000"
+            android:strokeLineCap="round" />
+
+        <!-- Cabeza niño derecho -->
+        <path
+            android:pathData="M61,60 m-5,0 a5,5.3 0 1,0 10,0 a5,5.3 0 1,0 -10,0"
+            android:strokeColor="#2F3A3A"
+            android:strokeWidth="3.0"
+            android:fillColor="#00000000"
+            android:strokeLineCap="round" />
+
+        <!-- Cuerpo niño izquierdo -->
+        <path
+            android:pathData="M40,78
+                C40,70 43,66 47,66
+                C51,66 54,70 54,78"
+            android:strokeColor="#2F3A3A"
+            android:strokeWidth="3.2"
+            android:fillColor="#00000000"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+
+        <!-- Cuerpo niño derecho -->
+        <path
+            android:pathData="M54,80
+                C54,72 57,68 61,68
+                C65,68 68,72 68,80"
+            android:strokeColor="#2F3A3A"
+            android:strokeWidth="3.2"
+            android:fillColor="#00000000"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

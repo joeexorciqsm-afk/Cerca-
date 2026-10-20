@@ -1,13 +1,16 @@
 package com.cerca.app.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.cerca.app.R
 import com.cerca.app.viewmodel.AuthState
 import com.cerca.app.viewmodel.AuthViewModel
 
@@ -29,6 +32,15 @@ fun LoginScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Ícono de la app (familia) dentro de la pantalla de inicio.
+        Image(
+            painter = painterResource(id = R.drawable.ic_family),
+            contentDescription = "Logo de Cerca",
+            modifier = Modifier.size(96.dp)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         Text(
             text = "Cerca",
             style = MaterialTheme.typography.headlineLarge
