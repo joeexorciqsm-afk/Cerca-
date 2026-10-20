@@ -20,12 +20,14 @@ fun HomeScreen(
 ) {
     val email = FirebaseAuth.getInstance().currentUser?.email ?: ""
     val familyCode by viewModel.familyCode.collectAsState()
+    val familyName by viewModel.familyName.collectAsState()
     val familyMessage by viewModel.familyMessage.collectAsState()
     val phone by viewModel.phone.collectAsState()
 
     var codeInput by remember { mutableStateOf("") }
-    // Sincronizamos el campo editable con el teléfono guardado.
+    // Sincronizamos los campos editables con los valores guardados.
     var phoneInput by remember(phone) { mutableStateOf(phone) }
+    var familyNameInput by remember(familyName) { mutableStateOf(familyName) }
 
     Column(
         modifier = Modifier
@@ -59,8 +61,15 @@ fun HomeScreen(
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Nombre personalizado del grupo familiar (si tiene).
                 Text(
-                    text = "Tu código de familia",
+                    text = if (familyName.isNotBlank()) familyName else "Mi familia",
+                    style = MaterialTheme.typography.titleLarge,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Código de familia",
                     style = MaterialTheme.typography.titleMedium
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -75,6 +84,29 @@ fun HomeScreen(
                     textAlign = TextAlign.Center
                 )
             }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Nombre personalizado del grupo familiar (se puede cambiar).
+        Text(
+            text = "Nombre de la familia",
+            style = MaterialTheme.typography.titleMedium
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = familyNameInput,
+            onValueChange = { familyNameInput = it },
+            label = { Text("Ej: Familia Ramírez") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = { viewModel.saveFamilyName(familyNameInput) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Guardar nombre")
         }
 
         Spacer(modifier = Modifier.height(24.dp))

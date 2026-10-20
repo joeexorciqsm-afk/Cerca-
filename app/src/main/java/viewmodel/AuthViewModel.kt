@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import com.cerca.app.model.User
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -27,6 +28,10 @@ class AuthViewModel : ViewModel() {
     // Teléfono del usuario actual (para que la familia pueda llamarle).
     private val _phone = MutableStateFlow("")
     val phone: StateFlow<String> = _phone
+
+    // Nombre personalizado del grupo familiar.
+    private val _familyName = MutableStateFlow("")
+    val familyName: StateFlow<String> = _familyName
 
     init {
         // Si ya hay sesion iniciada, entramos directo
@@ -130,11 +135,13 @@ class AuthViewModel : ViewModel() {
                 if (snapshot.isEmpty) {
                     _familyMessage.value = "No existe una familia con ese código"
                 } else {
+                    // set + merge: crea el campo si el documento no existía (evita NOT_FOUND).
                     firestore.collection("users").document(uid)
-                        .update("familyCode", cleanCode)
+                        .set(mapOf("familyCode" to cleanCode), SetOptions.merge())
                         .addOnSuccessListener {
                             _familyCode.value = cleanCode
                             _familyMessage.value = "¡Te uniste a la familia!"
+                            loadFamilyName(cleanCode)
                         }
                         .addOnFailureListener { exception ->
                             _familyMessage.value =
@@ -162,6 +169,7 @@ class AuthViewModel : ViewModel() {
                 val code = doc.getString("familyCode")
                 if (!code.isNullOrBlank()) {
                     _familyCode.value = code
+                    loadFamilyName(code)
                 } else {
                     // No tiene código: le creamos uno y lo guardamos (auto-reparación).
                     assignFamilyCodeIfMissing(uid, user.email ?: "", doc.getString("name") ?: "")
@@ -197,8 +205,9 @@ class AuthViewModel : ViewModel() {
         val uid = firebaseAuth.currentUser?.uid ?: return
         val clean = newPhone.trim()
         _phone.value = clean
+        // set + merge: crea el documento si no existía (evita el error NOT_FOUND).
         firestore.collection("users").document(uid)
-            .update("phone", clean)
+            .set(mapOf("phone" to clean), SetOptions.merge())
             .addOnSuccessListener {
                 _familyMessage.value = "Teléfono guardado"
             }
@@ -207,9 +216,47 @@ class AuthViewModel : ViewModel() {
             }
     }
 
+    /** Guarda/cambia el nombre personalizado del grupo familiar (lo ven todos los miembros). */
+    fun saveFamilyName(newName: String) {
+        val code = _familyCode.value
+        val clean = newName.trim()
+        if (code.isBlank()) {
+            _familyMessage.value = "Primero necesitas un código de familia"
+            return
+        }
+        if (clean.isBlank()) {
+            _familyMessage.value = "Escribe un nombre para la familia"
+            return
+        }
+        _familyName.value = clean
+        // El nombre se guarda en families/{code} para que lo compartan todos los miembros.
+        firestore.collection("families").document(code)
+            .set(mapOf("name" to clean), SetOptions.merge())
+            .addOnSuccessListener {
+                _familyMessage.value = "Nombre de familia guardado"
+            }
+            .addOnFailureListener { exception ->
+                _familyMessage.value = exception.message ?: "No se pudo guardar el nombre"
+            }
+    }
+
+    /** Carga el nombre del grupo familiar desde families/{code}. */
+    private fun loadFamilyName(code: String) {
+        if (code.isBlank()) return
+        firestore.collection("families").document(code)
+            .get()
+            .addOnSuccessListener { doc ->
+                _familyName.value = doc.getString("name") ?: ""
+            }
+            .addOnFailureListener { exception ->
+                Log.w("AuthViewModel", "No se pudo cargar el nombre de familia: ${exception.message}")
+            }
+    }
+
     fun logout() {
         firebaseAuth.signOut()
         _familyCode.value = ""
+        _familyName.value = ""
         _familyMessage.value = null
         _phone.value = ""
         _authState.value = AuthState.Unauthenticated
