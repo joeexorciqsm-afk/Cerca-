@@ -106,6 +106,23 @@ class ContactsViewModel : ViewModel() {
             }
     }
 
+    /** Elimina un contacto manual del usuario actual. */
+    fun deleteContact(contactId: String) {
+        val uid = firebaseAuth.currentUser?.uid ?: return
+        if (contactId.isBlank()) return
+
+        firestore.collection("users").document(uid).collection("contacts")
+            .document(contactId)
+            .delete()
+            .addOnSuccessListener {
+                _message.value = "Contacto eliminado"
+                loadMyContacts(uid)
+            }
+            .addOnFailureListener { exception ->
+                _message.value = exception.message ?: "No se pudo eliminar el contacto"
+            }
+    }
+
     fun clearMessage() {
         _message.value = null
     }

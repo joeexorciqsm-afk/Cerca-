@@ -32,6 +32,8 @@ fun ContactsScreen(
     val context = LocalContext.current
 
     var showAddDialog by remember { mutableStateOf(false) }
+    // Contacto manual pendiente de confirmar eliminación (id y nombre).
+    var contactToDelete by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     // Cargamos los contactos al abrir la pantalla.
     LaunchedEffect(Unit) {
@@ -98,7 +100,7 @@ fun ContactsScreen(
             }
             else -> {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // Familiares vinculados.
+                    // Familiares vinculados (no se pueden eliminar: vienen de la familia).
                     items(familyContacts) { family ->
                         ContactCard(
                             name = family.name,
@@ -106,12 +108,13 @@ fun ContactsScreen(
                             onCall = { call(it) }
                         )
                     }
-                    // Contactos agregados manualmente.
+                    // Contactos agregados manualmente (sí se pueden eliminar).
                     items(myContacts) { c ->
                         ContactCard(
                             name = c.name,
                             phone = c.phone,
-                            onCall = { call(it) }
+                            onCall = { call(it) },
+                            onDelete = { contactToDelete = c.id to c.name }
                         )
                     }
                 }
@@ -125,6 +128,30 @@ fun ContactsScreen(
             onAdd = { name, phone ->
                 viewModel.addContact(name, phone)
                 showAddDialog = false
+            }
+        )
+    }
+
+    // Diálogo de confirmación para eliminar un contacto (evita borrados accidentales).
+    contactToDelete?.let { (id, name) ->
+        AlertDialog(
+            onDismissRequest = { contactToDelete = null },
+            title = { Text("Eliminar contacto") },
+            text = { Text("¿Seguro que quieres eliminar a \"$name\"?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteContact(id)
+                        contactToDelete = null
+                    }
+                ) {
+                    Text("Eliminar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { contactToDelete = null }) {
+                    Text("Cancelar")
+                }
             }
         )
     }
@@ -177,7 +204,8 @@ private fun AddContactDialog(
 private fun ContactCard(
     name: String,
     phone: String,
-    onCall: (String) -> Unit
+    onCall: (String) -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -218,16 +246,34 @@ private fun ContactCard(
                 )
             }
 
-            // Botón de llamar grande y legible.
-            if (phone.isNotBlank()) {
-                Button(
-                    onClick = { onCall(phone) },
-                    modifier = Modifier.height(52.dp)
-                ) {
-                    Text(
-                        text = "📞 Llamar",
-                        style = MaterialTheme.typography.titleMedium
-                    )
+            // Botones de acción (llamar y, si aplica, eliminar).
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (phone.isNotBlank()) {
+                    Button(
+                        onClick = { onCall(phone) },
+                        modifier = Modifier.height(52.dp)
+                    ) {
+                        Text(
+                            text = "📞 Llamar",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                }
+
+                // Solo los contactos manuales reciben onDelete.
+                if (onDelete != null) {
+                    if (phone.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    TextButton(
+                        onClick = onDelete,
+                        modifier = Modifier.height(44.dp)
+                    ) {
+                        Text(
+                            text = "🗑️ Eliminar",
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         }
