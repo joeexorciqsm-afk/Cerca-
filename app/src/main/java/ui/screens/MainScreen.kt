@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cerca.app.viewmodel.AuthViewModel
 
@@ -29,20 +30,23 @@ fun MainScreen(
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    icon = { Text("📞") },
-                    label = { Text("Contactos") }
+                    alwaysShowLabel = true,
+                    icon = { Text("📞", fontSize = 24.sp) },
+                    label = { Text("Contactos", fontSize = 14.sp) }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Text("🎤") },
-                    label = { Text("Voz") }
+                    alwaysShowLabel = true,
+                    icon = { Text("🎤", fontSize = 24.sp) },
+                    label = { Text("Voz", fontSize = 14.sp) }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    icon = { Text("👤") },
-                    label = { Text("Perfil") }
+                    alwaysShowLabel = true,
+                    icon = { Text("👤", fontSize = 24.sp) },
+                    label = { Text("Perfil", fontSize = 14.sp) }
                 )
             }
         }

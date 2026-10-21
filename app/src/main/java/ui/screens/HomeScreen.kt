@@ -104,7 +104,9 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = { viewModel.saveFamilyName(familyNameInput) },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
         ) {
             Text("Guardar nombre")
         }
@@ -127,7 +129,9 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = { viewModel.savePhone(phoneInput) },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
         ) {
             Text("Guardar teléfono")
         }
@@ -153,14 +157,16 @@ fun HomeScreen(
             Text(
                 text = familyMessage!!,
                 color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodyMedium
             )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = { viewModel.joinFamily(codeInput) },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
         ) {
             Text("Vincular")
         }
@@ -169,9 +175,13 @@ fun HomeScreen(
 
         OutlinedButton(
             onClick = onLogout,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
         ) {
             Text("Cerrar Sesión")
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }

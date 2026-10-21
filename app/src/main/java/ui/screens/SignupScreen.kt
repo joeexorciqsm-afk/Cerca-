@@ -81,11 +81,11 @@ fun SignupScreen(
 
         val errorMessage = localError ?: (authState as? AuthState.Error)?.message
         if (errorMessage != null) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = errorMessage,
                 color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodyMedium
             )
         }
 
@@ -101,11 +101,13 @@ fun SignupScreen(
                 }
             },
             enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(24.dp),
                     strokeWidth = 2.dp,
                     color = MaterialTheme.colorScheme.onPrimary
                 )
@@ -114,12 +116,14 @@ fun SignupScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         TextButton(
             onClick = onLoginClick,
             enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
         ) {
             Text("¿Ya tienes cuenta? Inicia sesión")
         }

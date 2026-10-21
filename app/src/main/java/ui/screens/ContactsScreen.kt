@@ -60,7 +60,10 @@ fun ContactsScreen(
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
-            Button(onClick = { showAddDialog = true }) {
+            Button(
+                onClick = { showAddDialog = true },
+                modifier = Modifier.height(52.dp)
+            ) {
                 Text("➕ Agregar")
             }
         }
@@ -217,7 +220,10 @@ private fun ContactCard(
 
             // Botón de llamar grande y legible.
             if (phone.isNotBlank()) {
-                Button(onClick = { onCall(phone) }) {
+                Button(
+                    onClick = { onCall(phone) },
+                    modifier = Modifier.height(52.dp)
+                ) {
                     Text(
                         text = "📞 Llamar",
                         style = MaterialTheme.typography.titleMedium

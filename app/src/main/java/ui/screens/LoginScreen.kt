@@ -36,14 +36,22 @@ fun LoginScreen(
         Image(
             painter = painterResource(id = R.drawable.ic_family),
             contentDescription = "Logo de Cerca",
-            modifier = Modifier.size(96.dp)
+            modifier = Modifier.size(120.dp)
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Cerca",
+            style = MaterialTheme.typography.headlineLarge
         )
 
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Cerca",
-            style = MaterialTheme.typography.headlineLarge
+            text = "Más cerca de tu familia",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -68,11 +76,11 @@ fun LoginScreen(
         )
 
         if (authState is AuthState.Error) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = (authState as AuthState.Error).message,
                 color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodyMedium
             )
         }
 
@@ -81,11 +89,13 @@ fun LoginScreen(
         Button(
             onClick = { viewModel.login(email, password) },
             enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(24.dp),
                     strokeWidth = 2.dp,
                     color = MaterialTheme.colorScheme.onPrimary
                 )
@@ -94,12 +104,14 @@ fun LoginScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         TextButton(
             onClick = onSignupClick,
             enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
         ) {
             Text("¿No tienes cuenta? Regístrate")
         }
