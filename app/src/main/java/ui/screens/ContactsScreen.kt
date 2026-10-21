@@ -34,6 +34,8 @@ fun ContactsScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     // Contacto manual pendiente de confirmar eliminación (id y nombre).
     var contactToDelete by remember { mutableStateOf<Pair<String, String>?>(null) }
+    // Contacto manual que se está editando (id, nombre, teléfono); null = no editando.
+    var contactToEdit by remember { mutableStateOf<Triple<String, String, String>?>(null) }
 
     // Cargamos los contactos al abrir la pantalla.
     LaunchedEffect(Unit) {
@@ -108,12 +110,13 @@ fun ContactsScreen(
                             onCall = { call(it) }
                         )
                     }
-                    // Contactos agregados manualmente (sí se pueden eliminar).
+                    // Contactos agregados manualmente (se pueden editar y eliminar).
                     items(myContacts) { c ->
                         ContactCard(
                             name = c.name,
                             phone = c.phone,
                             onCall = { call(it) },
+                            onEdit = { contactToEdit = Triple(c.id, c.name, c.phone) },
                             onDelete = { contactToDelete = c.id to c.name }
                         )
                     }
@@ -123,11 +126,28 @@ fun ContactsScreen(
     }
 
     if (showAddDialog) {
-        AddContactDialog(
+        ContactDialog(
+            title = "Agregar contacto",
+            confirmText = "Agregar",
             onDismiss = { showAddDialog = false },
-            onAdd = { name, phone ->
+            onConfirm = { name, phone ->
                 viewModel.addContact(name, phone)
                 showAddDialog = false
+            }
+        )
+    }
+
+    // Diálogo para editar un contacto manual (precargado con sus datos).
+    contactToEdit?.let { (id, name, phone) ->
+        ContactDialog(
+            title = "Editar contacto",
+            confirmText = "Guardar",
+            initialName = name,
+            initialPhone = phone,
+            onDismiss = { contactToEdit = null },
+            onConfirm = { newName, newPhone ->
+                viewModel.updateContact(id, newName, newPhone)
+                contactToEdit = null
             }
         )
     }
@@ -158,16 +178,20 @@ fun ContactsScreen(
 }
 
 @Composable
-private fun AddContactDialog(
+private fun ContactDialog(
+    title: String,
+    confirmText: String,
+    initialName: String = "",
+    initialPhone: String = "",
     onDismiss: () -> Unit,
-    onAdd: (String, String) -> Unit
+    onConfirm: (String, String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(initialName) }
+    var phone by remember { mutableStateOf(initialPhone) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Agregar contacto") },
+        title = { Text(title) },
         text = {
             Column {
                 OutlinedTextField(
@@ -188,8 +212,8 @@ private fun AddContactDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onAdd(name, phone) }) {
-                Text("Agregar")
+            Button(onClick = { onConfirm(name, phone) }) {
+                Text(confirmText)
             }
         },
         dismissButton = {
@@ -205,6 +229,7 @@ private fun ContactCard(
     name: String,
     phone: String,
     onCall: (String) -> Unit,
+    onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -260,11 +285,20 @@ private fun ContactCard(
                     }
                 }
 
-                // Solo los contactos manuales reciben onDelete.
-                if (onDelete != null) {
+                // Solo los contactos manuales reciben onEdit / onDelete.
+                if (onEdit != null) {
                     if (phone.isNotBlank()) {
                         Spacer(modifier = Modifier.height(8.dp))
                     }
+                    TextButton(
+                        onClick = onEdit,
+                        modifier = Modifier.height(44.dp)
+                    ) {
+                        Text("✏️ Editar")
+                    }
+                }
+
+                if (onDelete != null) {
                     TextButton(
                         onClick = onDelete,
                         modifier = Modifier.height(44.dp)

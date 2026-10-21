@@ -90,15 +90,78 @@ fun VoiceScreen(
         return (delaFamilia + manuales).filter { it.second.isNotBlank() }
     }
 
-    // Interpreta el comando. Devuelve la respuesta hablada y, si aplica, hace la llamada.
+    // Extrae la primera secuencia de dígitos del texto (para los números de teléfono).
+    fun extraerNumero(texto: String): String {
+        // Admite dígitos escritos y también quita espacios entre ellos.
+        val soloDigitos = texto.filter { it.isDigit() }
+        return soloDigitos
+    }
+
+    // Interpreta el comando. Devuelve la respuesta hablada y, si aplica, ejecuta la acción.
     fun procesarComando(frase: String): String {
         val texto = frase.lowercase().trim()
 
-        // Comando de llamada: "llama a X", "llamar a X", "marca a X".
+        // --- AGREGAR CONTACTO: "agrega a Juan con el número 871..." ---
+        val gatillosAgregar = listOf("agrega a ", "agregar a ", "agrega ", "agregar ", "nuevo contacto ")
+        val gAgregar = gatillosAgregar.firstOrNull { texto.contains(it) }
+        if (gAgregar != null) {
+            val resto = texto.substringAfter(gAgregar).trim()
+            // El nombre es lo que va antes de "con", "número" o los dígitos.
+            val numero = extraerNumero(resto)
+            var nombre = resto
+                .substringBefore(" con")
+                .substringBefore(" numero")
+                .substringBefore(" número")
+                .trim()
+            // Quitamos dígitos sueltos que hayan quedado en el nombre.
+            nombre = nombre.filter { !it.isDigit() }.trim().trim(',', '.')
+            return if (nombre.isBlank() || numero.isBlank()) {
+                "Para agregar di: agrega a un nombre con el número, y el teléfono."
+            } else {
+                contactsViewModel.addContact(nombre, numero)
+                "Agregando a $nombre"
+            }
+        }
+
+        // --- ELIMINAR CONTACTO: "elimina a Pedro" / "borra a Pedro" ---
+        val gatillosEliminar = listOf("elimina a ", "eliminar a ", "borra a ", "borrar a ", "elimina ", "borra ")
+        val gEliminar = gatillosEliminar.firstOrNull { texto.contains(it) }
+        if (gEliminar != null) {
+            val nombre = texto.substringAfter(gEliminar).trim().trim(',', '.')
+            if (nombre.isBlank()) return "¿A quién quieres eliminar?"
+            val eliminado = contactsViewModel.deleteContactByName(nombre)
+            return if (eliminado != null) "Eliminando a $eliminado"
+            else "No encontré a $nombre entre tus contactos"
+        }
+
+        // --- EDITAR TELÉFONO: "cambia el número de Juan a 871..." / "edita a Juan ..." ---
+        val gatillosEditar = listOf("cambia el número de ", "cambia el numero de ", "cambiar el número de ",
+            "edita a ", "editar a ", "cambia a ")
+        val gEditar = gatillosEditar.firstOrNull { texto.contains(it) }
+        if (gEditar != null) {
+            val resto = texto.substringAfter(gEditar).trim()
+            val numero = extraerNumero(resto)
+            var nombre = resto
+                .substringBefore(" a ")
+                .substringBefore(" con")
+                .substringBefore(" numero")
+                .substringBefore(" número")
+                .trim()
+            nombre = nombre.filter { !it.isDigit() }.trim().trim(',', '.')
+            return if (nombre.isBlank() || numero.isBlank()) {
+                "Para editar di: cambia el número de un nombre a, y el nuevo teléfono."
+            } else {
+                val ok = contactsViewModel.updateContactByName(nombre, numero)
+                if (ok) "Actualizando el número de $nombre"
+                else "No encontré a $nombre entre tus contactos"
+            }
+        }
+
+        // --- LLAMAR: "llama a X", "marca a X" ---
         val gatillos = listOf("llama a ", "llamar a ", "llámale a ", "marca a ", "llamar ", "llama ")
         val gatillo = gatillos.firstOrNull { texto.contains(it) }
         if (gatillo != null) {
-            val nombreBuscado = texto.substringAfter(gatillo).trim()
+            val nombreBuscado = texto.substringAfter(gatillo).trim().trim(',', '.')
             if (nombreBuscado.isBlank()) {
                 return "¿A quién quieres llamar?"
             }
@@ -140,7 +203,9 @@ fun VoiceScreen(
             texto.contains("gracias") -> "¡De nada! Para eso estoy."
 
             texto.contains("ayuda") ->
-                "Puedes decir: llama a un nombre, qué hora es, qué día es, o mis contactos."
+                "Puedes decir: llama a un nombre, agrega a un nombre con un número, " +
+                    "elimina a un nombre, cambia el número de un nombre, mis contactos, " +
+                    "qué hora es o qué día es."
 
             texto.isBlank() -> "No te entendí, inténtalo de nuevo."
 
@@ -276,8 +341,11 @@ fun VoiceScreen(
 
         Text(
             text = "Prueba diciendo:\n" +
-                "\"llama a [nombre]\", \"mis contactos\",\n" +
-                "\"qué hora es\", \"qué día es\" o \"ayuda\"",
+                "\"llama a [nombre]\"\n" +
+                "\"agrega a [nombre] con el número [teléfono]\"\n" +
+                "\"cambia el número de [nombre] a [teléfono]\"\n" +
+                "\"elimina a [nombre]\"\n" +
+                "\"mis contactos\", \"qué hora es\" o \"ayuda\"",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center

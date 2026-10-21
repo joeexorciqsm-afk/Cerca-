@@ -106,6 +106,66 @@ class ContactsViewModel : ViewModel() {
             }
     }
 
+    /** Edita un contacto manual existente (cambia nombre y/o teléfono). */
+    fun updateContact(contactId: String, name: String, phone: String) {
+        val uid = firebaseAuth.currentUser?.uid
+        val cleanName = name.trim()
+        val cleanPhone = phone.trim()
+
+        if (uid == null) {
+            _message.value = "Debes iniciar sesión"
+            return
+        }
+        if (contactId.isBlank()) return
+        if (cleanName.isBlank() || cleanPhone.isBlank()) {
+            _message.value = "Escribe el nombre y el teléfono"
+            return
+        }
+
+        firestore.collection("users").document(uid).collection("contacts")
+            .document(contactId)
+            .set(Contact(id = contactId, name = cleanName, phone = cleanPhone))
+            .addOnSuccessListener {
+                _message.value = "Contacto actualizado"
+                loadMyContacts(uid)
+            }
+            .addOnFailureListener { exception ->
+                _message.value = exception.message ?: "No se pudo actualizar el contacto"
+            }
+    }
+
+    /**
+     * Busca un contacto manual por nombre (coincidencia aproximada) y, si existe,
+     * actualiza su teléfono. Útil para comandos de voz.
+     * Devuelve true si lo encontró y actualizó.
+     */
+    fun updateContactByName(name: String, newPhone: String): Boolean {
+        val uid = firebaseAuth.currentUser?.uid ?: return false
+        val target = name.trim().lowercase()
+        val match = _myContacts.value.firstOrNull {
+            val n = it.name.lowercase()
+            n == target || n.startsWith(target) || n.contains(target)
+        } ?: return false
+
+        updateContact(match.id, match.name, newPhone)
+        return true
+    }
+
+    /**
+     * Busca un contacto manual por nombre y lo elimina. Útil para comandos de voz.
+     * Devuelve el nombre real del contacto eliminado, o null si no lo encontró.
+     */
+    fun deleteContactByName(name: String): String? {
+        val target = name.trim().lowercase()
+        val match = _myContacts.value.firstOrNull {
+            val n = it.name.lowercase()
+            n == target || n.startsWith(target) || n.contains(target)
+        } ?: return null
+
+        deleteContact(match.id)
+        return match.name
+    }
+
     /** Elimina un contacto manual del usuario actual. */
     fun deleteContact(contactId: String) {
         val uid = firebaseAuth.currentUser?.uid ?: return
