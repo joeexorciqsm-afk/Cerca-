@@ -8,12 +8,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cerca.app.viewmodel.AuthViewModel
+import com.cerca.app.viewmodel.ContactsViewModel
 
 /**
  * Pantalla principal tras iniciar sesión. Tiene tres pestañas:
- * - Contactos (primera pestaña): los familiares vinculados.
- * - Voz: comandos de voz (reconocer frases y responder con voz).
- * - Perfil: código de familia, vincular y cerrar sesión.
+ * - Contactos (primera pestaña): los familiares vinculados y contactos manuales.
+ * - Voz: comandos de voz que controlan los tres apartados de la app.
+ * - Perfil: información personal y familia.
+ *
+ * Los ViewModels se crean aquí y se comparten entre las pestañas, para que el
+ * asistente de voz pueda modificar contactos, perfil y familia, y los cambios
+ * se vean reflejados en las demás pantallas.
  */
 @Composable
 fun MainScreen(
@@ -21,6 +26,8 @@ fun MainScreen(
     onLogout: () -> Unit = {},
     startOnVoice: Boolean = false
 ) {
+    val contactsViewModel: ContactsViewModel = viewModel()
+
     // Si se abrió desde el atajo de voz, arrancamos en la pestaña Voz (índice 1).
     var selectedTab by remember { mutableStateOf(if (startOnVoice) 1 else 0) }
 
@@ -57,8 +64,11 @@ fun MainScreen(
                 .padding(innerPadding)
         ) {
             when (selectedTab) {
-                0 -> ContactsScreen()
-                1 -> VoiceScreen()
+                0 -> ContactsScreen(viewModel = contactsViewModel)
+                1 -> VoiceScreen(
+                    contactsViewModel = contactsViewModel,
+                    authViewModel = authViewModel
+                )
                 else -> HomeScreen(
                     viewModel = authViewModel,
                     onLogout = onLogout
