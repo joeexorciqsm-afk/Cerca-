@@ -27,9 +27,15 @@ class ContactsViewModel : ViewModel() {
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
 
-    /** Carga los familiares vinculados y los contactos manuales del usuario. */
-    fun loadContacts() {
+    // Evita recargar desde Firestore cada vez que se entra a la pestaña
+    // (ahorra lecturas, datos y memoria en dispositivos de baja RAM).
+    private var alreadyLoaded = false
+
+    /** Carga los contactos. Usa caché en memoria salvo que se fuerce la recarga. */
+    fun loadContacts(forceReload: Boolean = false) {
+        if (alreadyLoaded && !forceReload) return
         val currentUid = firebaseAuth.currentUser?.uid ?: return
+        alreadyLoaded = true
         _loading.value = true
 
         // 1) Familiares (mismo familyCode).

@@ -22,10 +22,14 @@ android {
 
     buildTypes {
         release {
-            optimization {
-                enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
-            }
+            // Reduce y ofusca el código (R8) y elimina recursos no usados:
+            // genera un APK más pequeño y con menor huella de memoria.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
     compileOptions {
@@ -35,6 +39,22 @@ android {
 
     buildFeatures {
         compose = true
+        // Desactivamos features de build que no usamos (menos trabajo y tamaño).
+        buildConfig = false
+        resValues = false
+        shaders = false
+    }
+
+    // Empaquetado: excluye metadatos innecesarios para aligerar el APK.
+    packaging {
+        resources {
+            excludes += setOf(
+                "/META-INF/{AL2.0,LGPL2.1}",
+                "/META-INF/*.version",
+                "DebugProbesKt.bin",
+                "kotlin-tooling-metadata.json"
+            )
+        }
     }
 }
 
@@ -61,9 +81,11 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
-    //noinspection LoginCredentials
-    implementation("com.google.firebase:firebase-auth:25.0.0")
-    implementation("com.google.firebase:firebase-firestore:27.0.1")
+
+    // Firebase: el BOM va primero y las librerías SIN versión (las gestiona el BOM).
+    // Esto evita conflictos de versiones y mantiene solo lo que usamos (auth + firestore),
+    // reduciendo el tamaño del APK y la huella de memoria.
     implementation(platform("com.google.firebase:firebase-bom:35.0.2"))
-    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
 }
