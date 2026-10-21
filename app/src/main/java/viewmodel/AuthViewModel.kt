@@ -195,6 +195,25 @@ class AuthViewModel : ViewModel() {
             }
     }
 
+    /**
+     * Saca al usuario de su familia actual. Le asigna un código nuevo (queda en su
+     * propia familia) para que pueda invitar o unirse a otra cuando quiera.
+     */
+    fun leaveFamily() {
+        val uid = firebaseAuth.currentUser?.uid ?: return
+        val nuevoCodigo = generateFamilyCode()
+        firestore.collection("users").document(uid)
+            .set(mapOf("familyCode" to nuevoCodigo), SetOptions.merge())
+            .addOnSuccessListener {
+                _familyCode.value = nuevoCodigo
+                _familyName.value = ""
+                _familyMessage.value = "Saliste de la familia"
+            }
+            .addOnFailureListener { exception ->
+                _familyMessage.value = exception.message ?: "No se pudo salir de la familia"
+            }
+    }
+
     /** Limpia el mensaje de vinculación tras mostrarlo. */
     fun clearFamilyMessage() {
         _familyMessage.value = null
