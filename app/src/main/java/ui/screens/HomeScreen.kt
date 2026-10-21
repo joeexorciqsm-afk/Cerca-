@@ -10,25 +10,49 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cerca.app.viewmodel.AuthViewModel
 import com.google.firebase.auth.FirebaseAuth
+
+// Sub-pantallas del Perfil.
+private enum class ProfileTab { MENU, PERSONAL, FAMILY }
 
 @Composable
 fun HomeScreen(
     viewModel: AuthViewModel = viewModel(),
     onLogout: () -> Unit = {}
 ) {
-    val email = FirebaseAuth.getInstance().currentUser?.email ?: ""
-    val familyCode by viewModel.familyCode.collectAsState()
-    val familyName by viewModel.familyName.collectAsState()
-    val familyMessage by viewModel.familyMessage.collectAsState()
-    val phone by viewModel.phone.collectAsState()
+    var screen by remember { mutableStateOf(ProfileTab.MENU) }
 
-    var codeInput by remember { mutableStateOf("") }
-    var phoneInput by remember(phone) { mutableStateOf(phone) }
-    var familyNameInput by remember(familyName) { mutableStateOf(familyName) }
-    var showLeaveDialog by remember { mutableStateOf(false) }
+    when (screen) {
+        ProfileTab.PERSONAL -> PersonalInfoScreen(
+            viewModel = viewModel,
+            onBack = { screen = ProfileTab.MENU }
+        )
+        ProfileTab.FAMILY -> FamilyScreen(
+            viewModel = viewModel,
+            onBack = { screen = ProfileTab.MENU }
+        )
+        ProfileTab.MENU -> ProfileMenu(
+            viewModel = viewModel,
+            onOpenPersonal = { screen = ProfileTab.PERSONAL },
+            onOpenFamily = { screen = ProfileTab.FAMILY },
+            onLogout = onLogout
+        )
+    }
+}
+
+@Composable
+private fun ProfileMenu(
+    viewModel: AuthViewModel,
+    onOpenPersonal: () -> Unit,
+    onOpenFamily: () -> Unit,
+    onLogout: () -> Unit
+) {
+    val email = FirebaseAuth.getInstance().currentUser?.email ?: ""
+    val userName by viewModel.userName.collectAsState()
+    val familyName by viewModel.familyName.collectAsState()
 
     Column(
         modifier = Modifier
@@ -37,12 +61,13 @@ fun HomeScreen(
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Perfil",
+            text = if (userName.isNotBlank()) "Hola, $userName" else "Perfil",
             style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
         )
 
         if (email.isNotBlank()) {
@@ -54,141 +79,28 @@ fun HomeScreen(
             )
         }
 
-        // Mensaje de estado (guardado, vinculado, etc.).
-        if (familyMessage != null) {
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = familyMessage!!,
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center
-            )
-        }
+        Spacer(modifier = Modifier.height(28.dp))
+
+        // Opción: Información personal
+        MenuCard(
+            emoji = "👤",
+            title = "Información personal",
+            subtitle = "Nombre, edad y teléfono",
+            onClick = onOpenPersonal
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // === Tarjeta destacada: nombre y código de familia ===
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = if (familyName.isNotBlank()) familyName else "Mi familia",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Código de familia",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = if (familyCode.isNotBlank()) familyCode else "—",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Compártelo con tu familia para que se vinculen",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
+        // Opción: Mi familia
+        MenuCard(
+            emoji = "👨‍👩‍👧‍👦",
+            title = "Mi familia",
+            subtitle = if (familyName.isNotBlank()) familyName else "Código, miembros y vinculación",
+            onClick = onOpenFamily
+        )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
-        // === Sección: Información personal ===
-        SectionCard(title = "Información personal") {
-            Text("Nombre de la familia", style = MaterialTheme.typography.bodyLarge)
-            Spacer(modifier = Modifier.height(6.dp))
-            OutlinedTextField(
-                value = familyNameInput,
-                onValueChange = { familyNameInput = it },
-                placeholder = { Text("Ej: Familia Ramírez") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = { viewModel.saveFamilyName(familyNameInput) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-            ) {
-                Text("Guardar nombre")
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Text("Mi teléfono", style = MaterialTheme.typography.bodyLarge)
-            Spacer(modifier = Modifier.height(6.dp))
-            OutlinedTextField(
-                value = phoneInput,
-                onValueChange = { phoneInput = it },
-                placeholder = { Text("Número de teléfono") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = { viewModel.savePhone(phoneInput) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-            ) {
-                Text("Guardar teléfono")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // === Sección: Familia (unirse / salir) ===
-        SectionCard(title = "Familia") {
-            Text("Unirse a otra familia", style = MaterialTheme.typography.bodyLarge)
-            Spacer(modifier = Modifier.height(6.dp))
-            OutlinedTextField(
-                value = codeInput,
-                onValueChange = { codeInput = it },
-                placeholder = { Text("Código de familia") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = { viewModel.joinFamily(codeInput) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-            ) {
-                Text("Vincular")
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedButton(
-                onClick = { showLeaveDialog = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-            ) {
-                Text("Salir de la familia")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // === Cerrar sesión ===
         OutlinedButton(
             onClick = onLogout,
             modifier = Modifier
@@ -200,52 +112,40 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
     }
-
-    // Confirmación para salir de la familia.
-    if (showLeaveDialog) {
-        AlertDialog(
-            onDismissRequest = { showLeaveDialog = false },
-            title = { Text("Salir de la familia") },
-            text = {
-                Text(
-                    "Dejarás de ver a los miembros de esta familia como contactos " +
-                        "y obtendrás un código nuevo. ¿Continuar?"
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.leaveFamily()
-                        showLeaveDialog = false
-                    }
-                ) {
-                    Text("Salir")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLeaveDialog = false }) {
-                    Text("Cancelar")
-                }
-            }
-        )
-    }
 }
 
-/** Tarjeta de sección con un título, para agrupar opciones de forma clara. */
 @Composable
-private fun SectionCard(
+private fun MenuCard(
+    emoji: String,
     title: String,
-    content: @Composable ColumnScope.() -> Unit
+    subtitle: String,
+    onClick: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            content()
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = emoji, fontSize = 36.sp)
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(text = "›", fontSize = 32.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

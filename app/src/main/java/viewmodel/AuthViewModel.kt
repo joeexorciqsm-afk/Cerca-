@@ -33,6 +33,17 @@ class AuthViewModel : ViewModel() {
     private val _familyName = MutableStateFlow("")
     val familyName: StateFlow<String> = _familyName
 
+    // Datos personales del usuario.
+    private val _userName = MutableStateFlow("")
+    val userName: StateFlow<String> = _userName
+
+    private val _age = MutableStateFlow("")
+    val age: StateFlow<String> = _age
+
+    // Miembros de la familia (todos los que comparten el código, incluido el usuario).
+    private val _familyMembers = MutableStateFlow<List<User>>(emptyList())
+    val familyMembers: StateFlow<List<User>> = _familyMembers
+
     init {
         // Si ya hay sesion iniciada, entramos directo
         if (firebaseAuth.currentUser != null) {
@@ -142,6 +153,7 @@ class AuthViewModel : ViewModel() {
                             _familyCode.value = cleanCode
                             _familyMessage.value = "¡Te uniste a la familia!"
                             loadFamilyName(cleanCode)
+                            loadFamilyMembers(cleanCode)
                         }
                         .addOnFailureListener { exception ->
                             _familyMessage.value =
@@ -166,10 +178,13 @@ class AuthViewModel : ViewModel() {
             .get()
             .addOnSuccessListener { doc ->
                 _phone.value = doc.getString("phone") ?: ""
+                _userName.value = doc.getString("name") ?: ""
+                _age.value = doc.getString("age") ?: ""
                 val code = doc.getString("familyCode")
                 if (!code.isNullOrBlank()) {
                     _familyCode.value = code
                     loadFamilyName(code)
+                    loadFamilyMembers(code)
                 } else {
                     // No tiene código: le creamos uno y lo guardamos (auto-reparación).
                     assignFamilyCodeIfMissing(uid, user.email ?: "", doc.getString("name") ?: "")
@@ -208,6 +223,7 @@ class AuthViewModel : ViewModel() {
                 _familyCode.value = nuevoCodigo
                 _familyName.value = ""
                 _familyMessage.value = "Saliste de la familia"
+                loadFamilyMembers(nuevoCodigo)
             }
             .addOnFailureListener { exception ->
                 _familyMessage.value = exception.message ?: "No se pudo salir de la familia"
@@ -217,6 +233,48 @@ class AuthViewModel : ViewModel() {
     /** Limpia el mensaje de vinculación tras mostrarlo. */
     fun clearFamilyMessage() {
         _familyMessage.value = null
+    }
+
+    /** Guarda la información personal del usuario (nombre, edad, teléfono). */
+    fun savePersonalInfo(name: String, age: String, phone: String) {
+        val uid = firebaseAuth.currentUser?.uid ?: return
+        val datos = mapOf(
+            "name" to name.trim(),
+            "age" to age.trim(),
+            "phone" to phone.trim()
+        )
+        _userName.value = name.trim()
+        _age.value = age.trim()
+        _phone.value = phone.trim()
+        firestore.collection("users").document(uid)
+            .set(datos, SetOptions.merge())
+            .addOnSuccessListener {
+                _familyMessage.value = "Información guardada"
+                // Refrescamos los miembros para que se vea el nombre actualizado.
+                if (_familyCode.value.isNotBlank()) loadFamilyMembers(_familyCode.value)
+            }
+            .addOnFailureListener { exception ->
+                _familyMessage.value = exception.message ?: "No se pudo guardar la información"
+            }
+    }
+
+    /** Carga todos los miembros de la familia (los que comparten el código). */
+    private fun loadFamilyMembers(code: String) {
+        if (code.isBlank()) {
+            _familyMembers.value = emptyList()
+            return
+        }
+        firestore.collection("users")
+            .whereEqualTo("familyCode", code)
+            .get()
+            .addOnSuccessListener { snapshot ->
+                _familyMembers.value = snapshot.documents
+                    .mapNotNull { it.toObject(User::class.java) }
+                    .sortedBy { it.name.lowercase() }
+            }
+            .addOnFailureListener { exception ->
+                Log.w("AuthViewModel", "No se pudieron cargar los miembros: ${exception.message}")
+            }
     }
 
     /** Guarda el teléfono del usuario para que su familia pueda llamarle. */
