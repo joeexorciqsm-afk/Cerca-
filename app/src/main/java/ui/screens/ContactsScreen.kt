@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -233,50 +234,62 @@ private fun ContactCard(
     onDelete: (() -> Unit)? = null
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp)
         ) {
-            // Avatar grande con la inicial del nombre (foto grande - F02).
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
-                contentAlignment = Alignment.Center
+            // Fila superior: avatar + nombre y teléfono (con espacio suficiente).
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Avatar grande con la inicial del nombre (foto grande - F02).
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = name.trim().firstOrNull()?.uppercase() ?: "?",
+                        color = Color.White,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = name.ifBlank { "Sin nombre" },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = phone.ifBlank { "Sin teléfono" },
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Fila inferior: botones de acción, bien separados del texto.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = name.trim().firstOrNull()?.uppercase() ?: "?",
-                    color = Color.White,
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            // Nombre y teléfono, con texto grande y legible.
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = name.ifBlank { "Sin nombre" },
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = phone.ifBlank { "Sin teléfono" },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // Botones de acción (llamar y, si aplica, eliminar).
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 if (phone.isNotBlank()) {
                     Button(
                         onClick = { onCall(phone) },
-                        modifier = Modifier.height(52.dp)
+                        modifier = Modifier.height(48.dp)
                     ) {
                         Text(
                             text = "📞 Llamar",
@@ -285,14 +298,13 @@ private fun ContactCard(
                     }
                 }
 
-                // Solo los contactos manuales reciben onEdit / onDelete.
+                // Empuja Editar/Eliminar hacia la derecha.
+                Spacer(modifier = Modifier.weight(1f))
+
                 if (onEdit != null) {
-                    if (phone.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
                     TextButton(
                         onClick = onEdit,
-                        modifier = Modifier.height(44.dp)
+                        modifier = Modifier.height(48.dp)
                     ) {
                         Text("✏️ Editar")
                     }
@@ -301,10 +313,10 @@ private fun ContactCard(
                 if (onDelete != null) {
                     TextButton(
                         onClick = onDelete,
-                        modifier = Modifier.height(44.dp)
+                        modifier = Modifier.height(48.dp)
                     ) {
                         Text(
-                            text = "🗑️ Eliminar",
+                            text = "🗑️",
                             color = MaterialTheme.colorScheme.error
                         )
                     }
