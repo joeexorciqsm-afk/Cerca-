@@ -72,7 +72,8 @@ fun MainScreen(
                 0 -> ContactsScreen(viewModel = contactsViewModel)
                 1 -> VoiceScreen(
                     contactsViewModel = contactsViewModel,
-                    authViewModel = authViewModel
+                    authViewModel = authViewModel,
+                    medicationViewModel = medicationViewModel
                 )
                 2 -> MedicationsScreen(viewModel = medicationViewModel)
                 3 -> FamilyDashboardScreen(viewModel = authViewModel)
