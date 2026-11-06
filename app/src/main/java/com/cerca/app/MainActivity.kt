@@ -7,12 +7,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.cerca.app.ui.notifications.MedicationNotificationHelper
 import com.cerca.app.ui.screens.AuthScreen
 import com.cerca.app.ui.theme.CercaTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Crear el canal de notificaciones para medicamentos
+        MedicationNotificationHelper.createChannel(this)
 
         val startOnVoice = intent?.getBooleanExtra(EXTRA_START_VOICE, false) ?: false
 
