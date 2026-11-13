@@ -528,65 +528,34 @@ private fun InfoCard(label: String, text: String, highlight: Boolean = false) {
 private fun CommandExamples() {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("¿Qué puedes decir?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(12.dp))
+            Text("Ejemplos de comandos",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(14.dp))
 
-            ExampleGroup(
-                emoji = "🆘",
-                title = "Emergencias",
-                examples = listOf(
-                    "\"Emergencia\"",
-                    "\"Envía SOS\"",
-                    "\"Necesito ayuda\"",
-                    "\"Emergencia, me caí en casa\"",
-                    "\"Cancela la alerta\"",
-                    "\"¿Hay alertas de mi familia?\""
-                )
-            )
+            ExampleGroup("🆘", "Emergencia", listOf(
+                "\"Emergencia\"",
+                "\"SOS\"",
+                "\"Necesito ayuda\""
+            ))
             Spacer(Modifier.height(12.dp))
-            ExampleGroup(
-                emoji = "💊",
-                title = "Medicamentos",
-                examples = listOf(
-                    "\"Agrega la pastilla Omeprazol a las 8\"",
-                    "\"Agrega el medicamento Metformina a las 7 y media\"",
-                    "\"Agrega la pastilla Ibuprofeno a las 3 de la tarde los lunes\"",
-                    "\"Elimina el medicamento Omeprazol\"",
-                    "\"¿Cuáles son mis medicamentos?\"",
-                    "\"¿A qué hora tomo Metformina?\""
-                )
-            )
+            ExampleGroup("💊", "Medicamentos", listOf(
+                "\"Pastilla Omeprazol a las 8\"",
+                "\"Elimina Omeprazol\"",
+                "\"Mis medicamentos\""
+            ))
             Spacer(Modifier.height(12.dp))
-            ExampleGroup(
-                emoji = "📞",
-                title = "Contactos",
-                examples = listOf(
-                    "\"Llama a mamá\"",
-                    "\"Agrega a Juan con el número 871...\"",
-                    "\"Cambia el número de Juan a 871...\"",
-                    "\"Elimina a Pedro\""
-                )
-            )
+            ExampleGroup("📞", "Contactos", listOf(
+                "\"Llama a mamá\"",
+                "\"Agrega a Juan 8711234567\"",
+                "\"Elimina a Pedro\""
+            ))
             Spacer(Modifier.height(12.dp))
-            ExampleGroup(
-                emoji = "👤",
-                title = "Mi información",
-                examples = listOf(
-                    "\"Cambia mi nombre a Ana\"",
-                    "\"Cambia mi teléfono a 871...\"",
-                    "\"¿Cuál es mi teléfono?\""
-                )
-            )
-            Spacer(Modifier.height(12.dp))
-            ExampleGroup(
-                emoji = "👨‍👩‍👧",
-                title = "Familia",
-                examples = listOf(
-                    "\"¿Cuál es mi código?\"",
-                    "\"¿Quiénes son mis familiares?\"",
-                    "\"Sal de la familia\""
-                )
-            )
+            ExampleGroup("👤", "Mi perfil", listOf(
+                "\"Mi nombre es Ana\"",
+                "\"Mi teléfono\"",
+                "\"Mi código\""
+            ))
         }
     }
 }
