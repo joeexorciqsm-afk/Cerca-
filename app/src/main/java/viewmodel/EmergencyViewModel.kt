@@ -66,10 +66,13 @@ class EmergencyViewModel(application: Application) : AndroidViewModel(applicatio
             .orderBy("timestamp", Query.Direction.DESCENDING)
             .limit(10)
             .addSnapshotListener { snap, e ->
-                if (e != null) { Log.w("EmergVM", "myAlerts: ${e.message}"); return@addSnapshotListener }
+                if (e != null) {
+                    Log.w("EmergVM", "myAlerts error: ${e.message}")
+                    return@addSnapshotListener
+                }
                 _myAlerts.value = snap?.documents?.mapNotNull { doc ->
                     doc.toObject(EmergencyAlert::class.java)?.copy(id = doc.id)
-                } ?: emptyList()
+                }?.sortedByDescending { it.timestamp } ?: emptyList()
             }
     }
 
@@ -77,27 +80,32 @@ class EmergencyViewModel(application: Application) : AndroidViewModel(applicatio
         familyAlertsListener?.remove()
         familyAlertsListener = firestore.collection("emergencies")
             .whereEqualTo("familyCode", familyCode)
-            .whereEqualTo("resolved", false)
             .orderBy("timestamp", Query.Direction.DESCENDING)
             .limit(20)
             .addSnapshotListener { snap, e ->
-                if (e != null) { Log.w("EmergVM", "familyAlerts: ${e.message}"); return@addSnapshotListener }
+                if (e != null) {
+                    Log.w("EmergVM", "familyAlerts error: ${e.message}")
+                    return@addSnapshotListener
+                }
                 val alerts = snap?.documents?.mapNotNull { doc ->
                     doc.toObject(EmergencyAlert::class.java)?.copy(id = doc.id)
-                }?.filter { it.userId != myUid } ?: emptyList()
+                }?.filter { it.userId != myUid && !it.resolved } ?: emptyList()
 
                 val previous = _familyAlerts.value.map { it.id }.toSet()
                 alerts.forEach { alert ->
                     if (alert.id !in previous) {
-                        // Mostrar notificación local para alertas nuevas de familiares
-                        EmergencyNotificationHelper.showFamilyAlert(
-                            context = getApplication(),
-                            fromName = alert.userName,
-                            message  = alert.message,
-                            hasLocation = alert.hasLocation,
-                            lat = alert.latitude,
-                            lng = alert.longitude
-                        )
+                        try {
+                            EmergencyNotificationHelper.showFamilyAlert(
+                                context     = getApplication(),
+                                fromName    = alert.userName,
+                                message     = alert.message,
+                                hasLocation = alert.hasLocation,
+                                lat         = alert.latitude,
+                                lng         = alert.longitude
+                            )
+                        } catch (ex: Exception) {
+                            Log.w("EmergVM", "No se pudo mostrar notificación: ${ex.message}")
+                        }
                     }
                 }
                 _familyAlerts.value = alerts
