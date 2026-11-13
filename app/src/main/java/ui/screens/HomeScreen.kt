@@ -20,7 +20,8 @@ private enum class ProfileTab { MENU, PERSONAL, FAMILY }
 @Composable
 fun HomeScreen(
     viewModel: AuthViewModel = viewModel(),
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    onNavigateSOS: () -> Unit = {}
 ) {
     var screen by remember { mutableStateOf(ProfileTab.MENU) }
 
@@ -37,7 +38,8 @@ fun HomeScreen(
             viewModel = viewModel,
             onOpenPersonal = { screen = ProfileTab.PERSONAL },
             onOpenFamily = { screen = ProfileTab.FAMILY },
-            onLogout = onLogout
+            onLogout = onLogout,
+            onNavigateSOS = onNavigateSOS
         )
     }
 }
@@ -47,7 +49,8 @@ private fun ProfileMenu(
     viewModel: AuthViewModel,
     onOpenPersonal: () -> Unit,
     onOpenFamily: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateSOS: () -> Unit = {}
 ) {
     val email = FirebaseAuth.getInstance().currentUser?.email ?: ""
     val userName by viewModel.userName.collectAsState()
@@ -95,6 +98,44 @@ private fun ProfileMenu(
             subtitle = if (familyName.isNotBlank()) familyName else "Código, miembros y vinculación",
             onClick = onOpenFamily
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Acceso rápido a emergencias
+        Card(
+            onClick = onNavigateSOS,
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "🆘", fontSize = 36.sp)
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Emergencias",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Text(
+                        text = "Botón SOS, alertas y ubicación",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                    )
+                }
+                Text(
+                    text = "›", fontSize = 32.sp,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(32.dp))
 

@@ -2,14 +2,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permisos existentes -->
+    <!-- Audio -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Permisos para recordatorios de medicamentos -->
+    <!-- Notificaciones (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Alarmas exactas para medicamentos -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Geolocalización para alertas de emergencia -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:allowBackup="true"
@@ -36,12 +42,12 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
-        <!-- BroadcastReceiver para alarmas de medicamentos -->
+        <!-- Alarmas de medicamentos -->
         <receiver
             android:name="com.cerca.app.ui.notifications.MedicationReceiver"
             android:exported="false" />
 
-        <!-- BroadcastReceiver que reprograma alarmas tras reinicio del dispositivo -->
+        <!-- Reprogramar alarmas tras reinicio -->
         <receiver
             android:name="com.cerca.app.ui.notifications.BootReceiver"
             android:exported="true">

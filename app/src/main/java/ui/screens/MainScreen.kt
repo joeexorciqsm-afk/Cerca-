@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cerca.app.viewmodel.AuthViewModel
 import com.cerca.app.viewmodel.ContactsViewModel
+import com.cerca.app.viewmodel.EmergencyViewModel
 import com.cerca.app.viewmodel.MedicationViewModel
 
 @Composable
@@ -17,8 +18,9 @@ fun MainScreen(
     onLogout: () -> Unit = {},
     startOnVoice: Boolean = false
 ) {
-    val contactsViewModel: ContactsViewModel = viewModel()
+    val contactsViewModel:  ContactsViewModel  = viewModel()
     val medicationViewModel: MedicationViewModel = viewModel()
+    val emergencyViewModel:  EmergencyViewModel  = viewModel()
 
     var selectedTab by remember { mutableStateOf(if (startOnVoice) 1 else 0) }
 
@@ -27,38 +29,39 @@ fun MainScreen(
             NavigationBar {
                 NavigationBarItem(
                     selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
+                    onClick  = { selectedTab = 0 },
                     alwaysShowLabel = true,
-                    icon = { Text("📞", fontSize = 22.sp) },
-                    label = { Text("Contactos", fontSize = 11.sp) }
+                    icon  = { Text("📞", fontSize = 20.sp) },
+                    label = { Text("Contactos", fontSize = 10.sp) }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
+                    onClick  = { selectedTab = 1 },
                     alwaysShowLabel = true,
-                    icon = { Text("🎤", fontSize = 22.sp) },
-                    label = { Text("Voz", fontSize = 11.sp) }
+                    icon  = { Text("🎤", fontSize = 20.sp) },
+                    label = { Text("Voz", fontSize = 10.sp) }
                 )
+                // Botón SOS central destacado
                 NavigationBarItem(
                     selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
+                    onClick  = { selectedTab = 2 },
                     alwaysShowLabel = true,
-                    icon = { Text("💊", fontSize = 22.sp) },
-                    label = { Text("Meds", fontSize = 11.sp) }
+                    icon  = { Text("🆘", fontSize = 24.sp) },
+                    label = { Text("SOS", fontSize = 10.sp) }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
+                    onClick  = { selectedTab = 3 },
                     alwaysShowLabel = true,
-                    icon = { Text("🏠", fontSize = 22.sp) },
-                    label = { Text("Familia", fontSize = 11.sp) }
+                    icon  = { Text("💊", fontSize = 20.sp) },
+                    label = { Text("Meds", fontSize = 10.sp) }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 4,
-                    onClick = { selectedTab = 4 },
+                    onClick  = { selectedTab = 4 },
                     alwaysShowLabel = true,
-                    icon = { Text("👤", fontSize = 22.sp) },
-                    label = { Text("Perfil", fontSize = 11.sp) }
+                    icon  = { Text("👤", fontSize = 20.sp) },
+                    label = { Text("Perfil", fontSize = 10.sp) }
                 )
             }
         }
@@ -71,15 +74,19 @@ fun MainScreen(
             when (selectedTab) {
                 0 -> ContactsScreen(viewModel = contactsViewModel)
                 1 -> VoiceScreen(
-                    contactsViewModel = contactsViewModel,
-                    authViewModel = authViewModel,
+                    contactsViewModel   = contactsViewModel,
+                    authViewModel       = authViewModel,
                     medicationViewModel = medicationViewModel
                 )
-                2 -> MedicationsScreen(viewModel = medicationViewModel)
-                3 -> FamilyDashboardScreen(viewModel = authViewModel)
+                2 -> EmergencyScreen(
+                    authViewModel     = authViewModel,
+                    emergencyViewModel = emergencyViewModel
+                )
+                3 -> MedicationsScreen(viewModel = medicationViewModel)
                 else -> HomeScreen(
-                    viewModel = authViewModel,
-                    onLogout = onLogout
+                    viewModel      = authViewModel,
+                    onLogout       = onLogout,
+                    onNavigateSOS  = { selectedTab = 2 }
                 )
             }
         }
