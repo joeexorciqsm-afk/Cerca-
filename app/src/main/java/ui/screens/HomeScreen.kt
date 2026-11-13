@@ -15,7 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cerca.app.viewmodel.AuthViewModel
 import com.google.firebase.auth.FirebaseAuth
 
-private enum class ProfileTab { MENU, PERSONAL, FAMILY }
+private enum class ProfileTab { MENU, PERSONAL, FAMILY, PERMISSIONS }
 
 @Composable
 fun HomeScreen(
@@ -34,10 +34,14 @@ fun HomeScreen(
             viewModel = viewModel,
             onBack = { screen = ProfileTab.MENU }
         )
+        ProfileTab.PERMISSIONS -> PermissionsScreen(
+            onAllGranted = { screen = ProfileTab.MENU }
+        )
         ProfileTab.MENU -> ProfileMenu(
             viewModel = viewModel,
             onOpenPersonal = { screen = ProfileTab.PERSONAL },
             onOpenFamily = { screen = ProfileTab.FAMILY },
+            onOpenPermissions = { screen = ProfileTab.PERMISSIONS },
             onLogout = onLogout,
             onNavigateSOS = onNavigateSOS
         )
@@ -49,6 +53,7 @@ private fun ProfileMenu(
     viewModel: AuthViewModel,
     onOpenPersonal: () -> Unit,
     onOpenFamily: () -> Unit,
+    onOpenPermissions: () -> Unit,
     onLogout: () -> Unit,
     onNavigateSOS: () -> Unit = {}
 ) {
@@ -136,6 +141,16 @@ private fun ProfileMenu(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Permisos de la app
+        MenuCard(
+            emoji = "🔐",
+            title = "Permisos de la app",
+            subtitle = "Ubicación, notificaciones, micrófono",
+            onClick = onOpenPermissions
+        )
 
         Spacer(modifier = Modifier.height(32.dp))
 

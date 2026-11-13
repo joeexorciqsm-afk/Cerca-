@@ -13,21 +13,31 @@ fun AuthScreen(
     val authState by viewModel.authState.collectAsState()
     var showSignup by remember { mutableStateOf(false) }
 
+    // Muestra la pantalla de permisos una sola vez tras autenticarse
+    var permissionsGranted by remember { mutableStateOf(false) }
+
     if (authState is AuthState.Authenticated) {
-        MainScreen(
-            authViewModel = viewModel,
-            onLogout = { viewModel.logout() },
-            startOnVoice = startOnVoice
-        )
+        if (!permissionsGranted) {
+            PermissionsScreen(onAllGranted = { permissionsGranted = true })
+        } else {
+            MainScreen(
+                authViewModel = viewModel,
+                onLogout = {
+                    viewModel.logout()
+                    permissionsGranted = false   // volver a mostrar permisos en el próximo login
+                },
+                startOnVoice = startOnVoice
+            )
+        }
     } else {
         if (showSignup) {
             SignupScreen(
-                viewModel = viewModel,
+                viewModel    = viewModel,
                 onLoginClick = { showSignup = false }
             )
         } else {
             LoginScreen(
-                viewModel = viewModel,
+                viewModel     = viewModel,
                 onSignupClick = { showSignup = true }
             )
         }
