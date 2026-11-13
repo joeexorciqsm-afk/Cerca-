@@ -1,9 +1,12 @@
 package com.cerca.app.viewmodel
 
+import android.app.Application
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import com.cerca.app.model.Contact
+import com.cerca.app.model.PhoneContact
 import com.cerca.app.model.User
+import com.cerca.app.util.readPhoneContacts
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -12,7 +15,7 @@ import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-class ContactsViewModel : ViewModel() {
+class ContactsViewModel(application: Application) : AndroidViewModel(application) {
     private val firebaseAuth = FirebaseAuth.getInstance()
     private val firestore by lazy { FirebaseFirestore.getInstance() }
 
@@ -22,18 +25,21 @@ class ContactsViewModel : ViewModel() {
     private val _myContacts = MutableStateFlow<List<Contact>>(emptyList())
     val myContacts: StateFlow<List<Contact>> = _myContacts
 
+    private val _phoneContacts = MutableStateFlow<List<PhoneContact>>(emptyList())
+    val phoneContacts: StateFlow<List<PhoneContact>> = _phoneContacts
+
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
 
-    private var userListener: ListenerRegistration? = null
+    private var userListener:   ListenerRegistration? = null
     private var familyListener: ListenerRegistration? = null
-    private var listenedUid: String? = null
-    private var listenedCode: String? = null
-    private var hidden: Set<String> = emptySet()
-    private var rawMembers: List<User> = emptyList()
+    private var listenedUid:    String? = null
+    private var listenedCode:   String? = null
+    private var hidden:         Set<String> = emptySet()
+    private var rawMembers:     List<User> = emptyList()
 
     fun loadContacts(forceReload: Boolean = false) {
         val uid = firebaseAuth.currentUser?.uid ?: return
@@ -249,5 +255,25 @@ class ContactsViewModel : ViewModel() {
 
     fun clearMessage() {
         _message.value = null
+    }
+
+    // ── Contactos del teléfono ────────────────────────────────────────────────
+
+    /** Carga los contactos de la agenda. Llama esto después de que el usuario otorgue READ_CONTACTS. */
+    fun loadPhoneContacts() {
+        try {
+            _phoneContacts.value = readPhoneContacts(getApplication())
+        } catch (e: Exception) {
+            Log.w("ContactsVM", "Error leyendo agenda: ${e.message}")
+        }
+    }
+
+    /** Busca en la agenda por nombre o número (para los comandos de voz) */
+    fun findPhoneContact(query: String): PhoneContact? {
+        val q = query.trim().lowercase()
+        return _phoneContacts.value.firstOrNull {
+            val n = it.name.lowercase()
+            n == q || n.startsWith(q) || n.contains(q)
+        }
     }
 }

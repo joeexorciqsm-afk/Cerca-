@@ -366,12 +366,17 @@ fun VoiceScreen(
         if (gLlamar != null) {
             val nombre = t.substringAfter(gLlamar).trim().trim(',','.')
             if (nombre.isBlank()) return "¿A quién quieres llamar?"
+            // Busca primero en contactos de la app, luego en la agenda del teléfono
             val encontrado = contactosDisponibles().firstOrNull {
                 val n = it.first.lowercase()
                 n == nombre || n.startsWith(nombre) || n.contains(nombre)
             }
-            return if (encontrado != null) { call(encontrado.second); "Llamando a ${encontrado.first}" }
-            else "No encontré a $nombre en tus contactos"
+            if (encontrado != null) { call(encontrado.second); return "Llamando a ${encontrado.first}" }
+
+            val delTelefono = contactsViewModel.findPhoneContact(nombre)
+            if (delTelefono != null) { call(delTelefono.primaryPhone); return "Llamando a ${delTelefono.name}" }
+
+            return "No encontré a $nombre en tus contactos"
         }
 
         if (t.contains("mis contactos") || t.contains("qué contactos") || t.contains("que contactos")) {
