@@ -18,7 +18,7 @@ fun MainScreen(
     onLogout: () -> Unit = {},
     startOnVoice: Boolean = false
 ) {
-    val contactsViewModel:  ContactsViewModel  = viewModel()
+    val contactsViewModel:   ContactsViewModel   = viewModel()
     val medicationViewModel: MedicationViewModel = viewModel()
     val emergencyViewModel:  EmergencyViewModel  = viewModel()
 
@@ -41,7 +41,6 @@ fun MainScreen(
                     icon  = { Text("🎤", fontSize = 20.sp) },
                     label = { Text("Voz", fontSize = 10.sp) }
                 )
-                // Botón SOS central destacado
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick  = { selectedTab = 2 },
@@ -72,23 +71,23 @@ fun MainScreen(
                 .padding(innerPadding)
         ) {
             when (selectedTab) {
-                0 -> ContactsScreen(viewModel = contactsViewModel)
-                1 -> VoiceScreen(
-                    contactsViewModel   = contactsViewModel,
-                    authViewModel       = authViewModel,
-                    medicationViewModel = medicationViewModel,
-                    emergencyViewModel  = emergencyViewModel
-                )
-                2 -> EmergencyScreen(
-                    authViewModel     = authViewModel,
-                    emergencyViewModel = emergencyViewModel
-                )
-                3 -> MedicationsScreen(viewModel = medicationViewModel)
+                0    -> ContactsScreen(viewModel = contactsViewModel)
+                1    -> VoiceScreen(
+                            contactsViewModel   = contactsViewModel,
+                            authViewModel       = authViewModel,
+                            medicationViewModel = medicationViewModel,
+                            emergencyViewModel  = emergencyViewModel
+                        )
+                2    -> EmergencyScreen(
+                            authViewModel      = authViewModel,
+                            emergencyViewModel = emergencyViewModel
+                        )
+                3    -> MedicationsScreen(viewModel = medicationViewModel)
                 else -> HomeScreen(
-                    viewModel      = authViewModel,
-                    onLogout       = onLogout,
-                    onNavigateSOS  = { selectedTab = 2 }
-                )
+                            viewModel     = authViewModel,
+                            onLogout      = onLogout,
+                            onNavigateSOS = { selectedTab = 2 }
+                        )
             }
         }
     }

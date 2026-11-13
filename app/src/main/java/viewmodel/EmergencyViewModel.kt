@@ -2,7 +2,6 @@ package com.cerca.app.viewmodel
 
 import android.annotation.SuppressLint
 import android.app.Application
-import android.content.Context
 import android.location.Location
 import android.os.Looper
 import android.util.Log
@@ -18,7 +17,6 @@ import com.google.android.gms.location.Priority
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
-import com.google.firebase.firestore.Query
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -32,10 +30,9 @@ sealed class EmergencyState {
 
 class EmergencyViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val firestore = FirebaseFirestore.getInstance()
-    private val auth      = FirebaseAuth.getInstance()
-    private val fusedLocation =
-        LocationServices.getFusedLocationProviderClient(application)
+    private val firestore     = FirebaseFirestore.getInstance()
+    private val auth          = FirebaseAuth.getInstance()
+    private val fusedLocation = LocationServices.getFusedLocationProviderClient(application)
 
     private val _state = MutableStateFlow<EmergencyState>(EmergencyState.Idle)
     val state: StateFlow<EmergencyState> = _state
@@ -46,54 +43,54 @@ class EmergencyViewModel(application: Application) : AndroidViewModel(applicatio
     private val _familyAlerts = MutableStateFlow<List<EmergencyAlert>>(emptyList())
     val familyAlerts: StateFlow<List<EmergencyAlert>> = _familyAlerts
 
-    private var alertsListener: ListenerRegistration? = null
-    private var familyAlertsListener: ListenerRegistration? = null
+    private var myListener:     ListenerRegistration? = null
+    private var familyListener: ListenerRegistration? = null
 
     private fun uid() = auth.currentUser?.uid
 
-    // ── Cargar perfil y suscribir alertas ────────────────────────────────────
+    // ── Suscripciones ─────────────────────────────────────────────────────────
 
     fun loadAndSubscribe(user: User) {
         val uid = uid() ?: return
-        subscribeMyAlerts(uid)
-        if (user.familyCode.isNotBlank()) subscribeFamilyAlerts(user.familyCode, uid)
+        startMyAlertsListener(uid)
+        if (user.familyCode.isNotBlank()) startFamilyAlertsListener(user.familyCode, uid)
     }
 
-    private fun subscribeMyAlerts(uid: String) {
-        alertsListener?.remove()
-        alertsListener = firestore.collection("emergencies")
+    private fun startMyAlertsListener(uid: String) {
+        myListener?.remove()
+        myListener = firestore.collection("emergencies")
             .whereEqualTo("userId", uid)
-            .orderBy("timestamp", Query.Direction.DESCENDING)
-            .limit(10)
             .addSnapshotListener { snap, e ->
-                if (e != null) {
-                    Log.w("EmergVM", "myAlerts error: ${e.message}")
-                    return@addSnapshotListener
-                }
-                _myAlerts.value = snap?.documents?.mapNotNull { doc ->
-                    doc.toObject(EmergencyAlert::class.java)?.copy(id = doc.id)
-                }?.sortedByDescending { it.timestamp } ?: emptyList()
+                if (e != null) { Log.w("EmergVM", e.message ?: ""); return@addSnapshotListener }
+                _myAlerts.value = snap?.documents
+                    ?.mapNotNull { it.toObject(EmergencyAlert::class.java)?.copy(id = it.id) }
+                    ?.sortedByDescending { it.timestamp }
+                    ?.take(10)
+                    ?: emptyList()
             }
     }
 
-    private fun subscribeFamilyAlerts(familyCode: String, myUid: String) {
-        familyAlertsListener?.remove()
-        familyAlertsListener = firestore.collection("emergencies")
+    private fun startFamilyAlertsListener(familyCode: String, myUid: String) {
+        familyListener?.remove()
+        familyListener = firestore.collection("emergencies")
             .whereEqualTo("familyCode", familyCode)
-            .orderBy("timestamp", Query.Direction.DESCENDING)
-            .limit(20)
             .addSnapshotListener { snap, e ->
-                if (e != null) {
-                    Log.w("EmergVM", "familyAlerts error: ${e.message}")
-                    return@addSnapshotListener
-                }
-                val alerts = snap?.documents?.mapNotNull { doc ->
-                    doc.toObject(EmergencyAlert::class.java)?.copy(id = doc.id)
-                }?.filter { it.userId != myUid && !it.resolved } ?: emptyList()
+                if (e != null) { Log.w("EmergVM", e.message ?: ""); return@addSnapshotListener }
 
-                val previous = _familyAlerts.value.map { it.id }.toSet()
-                alerts.forEach { alert ->
-                    if (alert.id !in previous) {
+                val all = snap?.documents
+                    ?.mapNotNull { it.toObject(EmergencyAlert::class.java)?.copy(id = it.id) }
+                    ?: emptyList()
+
+                // Filtrar: no propias, no resueltas, ordenar por recientes
+                val active = all
+                    .filter { it.userId != myUid && !it.resolved }
+                    .sortedByDescending { it.timestamp }
+                    .take(20)
+
+                // Notificar solo alertas nuevas
+                val prevIds = _familyAlerts.value.map { it.id }.toSet()
+                active.forEach { alert ->
+                    if (alert.id !in prevIds) {
                         try {
                             EmergencyNotificationHelper.showFamilyAlert(
                                 context     = getApplication(),
@@ -104,23 +101,16 @@ class EmergencyViewModel(application: Application) : AndroidViewModel(applicatio
                                 lng         = alert.longitude
                             )
                         } catch (ex: Exception) {
-                            Log.w("EmergVM", "No se pudo mostrar notificación: ${ex.message}")
+                            Log.w("EmergVM", "notif: ${ex.message}")
                         }
                     }
                 }
-                _familyAlerts.value = alerts
+                _familyAlerts.value = active
             }
     }
 
-    // ── Enviar alerta SOS ─────────────────────────────────────────────────────
+    // ── Enviar SOS ────────────────────────────────────────────────────────────
 
-    /**
-     * Flujo principal:
-     * 1. Intenta obtener ubicación precisa (timeout 8s)
-     * 2. Construye EmergencyAlert con o sin ubicación
-     * 3. Guarda en Firestore colección "emergencies"
-     * 4. Muestra notificación local confirmando el envío
-     */
     @SuppressLint("MissingPermission")
     fun sendSOS(user: User, customMessage: String = "¡Necesito ayuda!") {
         if (_state.value is EmergencyState.GettingLocation ||
@@ -128,37 +118,39 @@ class EmergencyViewModel(application: Application) : AndroidViewModel(applicatio
 
         _state.value = EmergencyState.GettingLocation
 
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
-            .setMaxUpdates(1)
-            .setWaitForAccurateLocation(false)
-            .build()
-
         val cb = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 fusedLocation.removeLocationUpdates(this)
-                val loc = result.lastLocation
-                doSendAlert(user, customMessage, loc)
+                sendAlert(user, customMessage, result.lastLocation)
             }
         }
 
         try {
-            fusedLocation.requestLocationUpdates(request, cb, Looper.getMainLooper())
-            // Timeout: si en 8 segundos no llega ubicación, enviar sin ella
+            val req = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
+                .setMaxUpdates(1)
+                .setWaitForAccurateLocation(false)
+                .build()
+            fusedLocation.requestLocationUpdates(req, cb, Looper.getMainLooper())
+
+            // Timeout 8s — enviar sin ubicación si no llega a tiempo
             android.os.Handler(Looper.getMainLooper()).postDelayed({
                 fusedLocation.removeLocationUpdates(cb)
                 if (_state.value is EmergencyState.GettingLocation) {
-                    doSendAlert(user, customMessage, null)
+                    sendAlert(user, customMessage, null)
                 }
             }, 8_000L)
         } catch (e: Exception) {
-            Log.w("EmergVM", "No se pudo obtener ubicación: ${e.message}")
-            doSendAlert(user, customMessage, null)
+            Log.w("EmergVM", "GPS error: ${e.message}")
+            sendAlert(user, customMessage, null)
         }
     }
 
-    private fun doSendAlert(user: User, message: String, location: Location?) {
+    private fun sendAlert(user: User, message: String, location: Location?) {
         _state.value = EmergencyState.Sending
-        val uid = uid() ?: run { _state.value = EmergencyState.Error("Sesión no iniciada"); return }
+        val uid = uid() ?: run {
+            _state.value = EmergencyState.Error("Sesión no iniciada")
+            return
+        }
 
         val alert = EmergencyAlert(
             userId      = uid,
@@ -176,34 +168,33 @@ class EmergencyViewModel(application: Application) : AndroidViewModel(applicatio
         val ref = firestore.collection("emergencies").document()
         ref.set(alert.copy(id = ref.id))
             .addOnSuccessListener {
-                val saved = alert.copy(id = ref.id)
-                _state.value = EmergencyState.Sent(saved)
-                Log.d("EmergVM", "SOS enviado: ${ref.id}")
-
-                // Notificación local confirmando el envío
-                EmergencyNotificationHelper.showSOSSent(
-                    context     = getApplication(),
-                    hasLocation = location != null,
-                    lat         = location?.latitude  ?: 0.0,
-                    lng         = location?.longitude ?: 0.0
-                )
+                _state.value = EmergencyState.Sent(alert.copy(id = ref.id))
+                try {
+                    EmergencyNotificationHelper.showSOSSent(
+                        context     = getApplication(),
+                        hasLocation = location != null,
+                        lat         = location?.latitude  ?: 0.0,
+                        lng         = location?.longitude ?: 0.0
+                    )
+                } catch (ex: Exception) {
+                    Log.w("EmergVM", "notif sent: ${ex.message}")
+                }
             }
             .addOnFailureListener { e ->
-                _state.value = EmergencyState.Error(e.message ?: "No se pudo enviar la alerta")
+                _state.value = EmergencyState.Error(e.message ?: "Error al enviar")
             }
     }
 
     fun resolveAlert(alertId: String) {
         firestore.collection("emergencies").document(alertId)
             .update("resolved", true)
-            .addOnSuccessListener { Log.d("EmergVM", "Alerta resuelta: $alertId") }
     }
 
     fun resetState() { _state.value = EmergencyState.Idle }
 
     override fun onCleared() {
         super.onCleared()
-        alertsListener?.remove()
-        familyAlertsListener?.remove()
+        myListener?.remove()
+        familyListener?.remove()
     }
 }
