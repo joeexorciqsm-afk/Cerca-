@@ -5,6 +5,9 @@
     <!-- Audio -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Llamadas directas -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+
     <!-- Notificaciones (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 

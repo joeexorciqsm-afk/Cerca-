@@ -89,7 +89,28 @@ fun VoiceScreen(
                 == PackageManager.PERMISSION_GRANTED
         )
     }
+    var hasCallPerm by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE)
+                == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    var pendingCallPhone by remember { mutableStateOf("") }
 
+    val callPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCallPerm = granted
+        if (pendingCallPhone.isNotBlank()) {
+            val action = if (granted) Intent.ACTION_CALL else Intent.ACTION_DIAL
+            context.startActivity(
+                Intent(action, Uri.parse("tel:$pendingCallPhone")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+            pendingCallPhone = ""
+        }
+    }
     val tts = remember {
         var engine: TextToSpeech? = null
         engine = TextToSpeech(context) { status ->
@@ -104,11 +125,16 @@ fun VoiceScreen(
 
     fun speak(text: String) { answer = text; tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "resp") }
     fun call(phone: String) {
-        context.startActivity(
-            Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-        )
+        if (hasCallPerm) {
+            context.startActivity(
+                Intent(Intent.ACTION_CALL, Uri.parse("tel:$phone")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+        } else {
+            pendingCallPhone = phone
+            callPermLauncher.launch(Manifest.permission.CALL_PHONE)
+        }
     }
 
     fun contactosDisponibles() =

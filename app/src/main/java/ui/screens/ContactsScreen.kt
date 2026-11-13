@@ -1,7 +1,11 @@
 package com.cerca.app.ui.screens
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cerca.app.viewmodel.ContactsViewModel
 
@@ -30,18 +35,59 @@ fun ContactsScreen(viewModel: ContactsViewModel = viewModel()) {
     val message        by viewModel.message.collectAsState()
     val context        = LocalContext.current
 
-    var showAddDialog    by remember { mutableStateOf(false) }
-    var contactToDelete  by remember { mutableStateOf<Pair<String, String>?>(null) }
-    var contactToEdit    by remember { mutableStateOf<Triple<String, String, String>?>(null) }
-    var memberToHide     by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var showAddDialog   by remember { mutableStateOf(false) }
+    var contactToDelete by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var contactToEdit   by remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    var memberToHide    by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+    // Número pendiente de marcar mientras se pide permiso
+    var pendingCall by remember { mutableStateOf("") }
+
+    var hasCallPerm by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE)
+                == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    // Launcher para pedir CALL_PHONE en runtime
+    val callPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCallPerm = granted
+        if (granted && pendingCall.isNotBlank()) {
+            context.startActivity(
+                Intent(Intent.ACTION_CALL, Uri.parse("tel:$pendingCall")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+            pendingCall = ""
+        } else if (!granted && pendingCall.isNotBlank()) {
+            // Fallback: abrir el marcador si el usuario denegó el permiso
+            context.startActivity(
+                Intent(Intent.ACTION_DIAL, Uri.parse("tel:$pendingCall"))
+            )
+            pendingCall = ""
+        }
+    }
+
+    fun call(phone: String) {
+        if (hasCallPerm) {
+            context.startActivity(
+                Intent(Intent.ACTION_CALL, Uri.parse("tel:$phone")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+        } else {
+            pendingCall = phone
+            callPermLauncher.launch(Manifest.permission.CALL_PHONE)
+        }
+    }
 
     LaunchedEffect(Unit) { viewModel.loadContacts() }
     LaunchedEffect(message) {
         if (message != null) { kotlinx.coroutines.delay(2000); viewModel.clearMessage() }
     }
-
-    fun call(phone: String) =
-        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
 
     Column(modifier = Modifier.fillMaxSize()) {
 
