@@ -15,7 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cerca.app.viewmodel.AuthViewModel
 import com.google.firebase.auth.FirebaseAuth
 
-private enum class ProfileTab { MENU, PERSONAL, FAMILY, PERMISSIONS }
+private enum class ProfileTab { MENU, PERSONAL, FAMILY }
 
 @Composable
 fun HomeScreen(
@@ -28,22 +28,18 @@ fun HomeScreen(
     when (screen) {
         ProfileTab.PERSONAL -> PersonalInfoScreen(
             viewModel = viewModel,
-            onBack = { screen = ProfileTab.MENU }
+            onBack    = { screen = ProfileTab.MENU }
         )
         ProfileTab.FAMILY -> FamilyScreen(
             viewModel = viewModel,
-            onBack = { screen = ProfileTab.MENU }
-        )
-        ProfileTab.PERMISSIONS -> PermissionsScreen(
-            onAllGranted = { screen = ProfileTab.MENU }
+            onBack    = { screen = ProfileTab.MENU }
         )
         ProfileTab.MENU -> ProfileMenu(
-            viewModel = viewModel,
+            viewModel      = viewModel,
             onOpenPersonal = { screen = ProfileTab.PERSONAL },
-            onOpenFamily = { screen = ProfileTab.FAMILY },
-            onOpenPermissions = { screen = ProfileTab.PERMISSIONS },
-            onLogout = onLogout,
-            onNavigateSOS = onNavigateSOS
+            onOpenFamily   = { screen = ProfileTab.FAMILY },
+            onLogout       = onLogout,
+            onNavigateSOS  = onNavigateSOS
         )
     }
 }
@@ -53,12 +49,11 @@ private fun ProfileMenu(
     viewModel: AuthViewModel,
     onOpenPersonal: () -> Unit,
     onOpenFamily: () -> Unit,
-    onOpenPermissions: () -> Unit,
     onLogout: () -> Unit,
     onNavigateSOS: () -> Unit = {}
 ) {
-    val email = FirebaseAuth.getInstance().currentUser?.email ?: ""
-    val userName by viewModel.userName.collectAsState()
+    val email      = FirebaseAuth.getInstance().currentUser?.email ?: ""
+    val userName   by viewModel.userName.collectAsState()
     val familyName by viewModel.familyName.collectAsState()
 
     Column(
@@ -89,24 +84,23 @@ private fun ProfileMenu(
         Spacer(modifier = Modifier.height(28.dp))
 
         MenuCard(
-            emoji = "👤",
-            title = "Información personal",
+            emoji    = "👤",
+            title    = "Información personal",
             subtitle = "Nombre, edad y teléfono",
-            onClick = onOpenPersonal
+            onClick  = onOpenPersonal
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         MenuCard(
-            emoji = "👨‍👩‍👧‍👦",
-            title = "Mi familia",
+            emoji    = "👨‍👩‍👧‍👦",
+            title    = "Mi familia",
             subtitle = if (familyName.isNotBlank()) familyName else "Código, miembros y vinculación",
-            onClick = onOpenFamily
+            onClick  = onOpenFamily
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Acceso rápido a emergencias
         Card(
             onClick = onNavigateSOS,
             modifier = Modifier.fillMaxWidth(),
@@ -142,23 +136,11 @@ private fun ProfileMenu(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Permisos de la app
-        MenuCard(
-            emoji = "🔐",
-            title = "Permisos de la app",
-            subtitle = "Ubicación, notificaciones, micrófono",
-            onClick = onOpenPermissions
-        )
-
         Spacer(modifier = Modifier.height(32.dp))
 
         OutlinedButton(
-            onClick = onLogout,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
+            onClick  = onLogout,
+            modifier = Modifier.fillMaxWidth().height(56.dp)
         ) {
             Text("Cerrar Sesión")
         }
@@ -175,7 +157,7 @@ private fun MenuCard(
     onClick: () -> Unit
 ) {
     Card(
-        onClick = onClick,
+        onClick  = onClick,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
