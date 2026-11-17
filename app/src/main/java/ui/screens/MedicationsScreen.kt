@@ -237,7 +237,7 @@ private fun MedicationCard(
             if (!readOnly) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (onToggle != null)
-                        OutlinedButton(onClick = onToggle, modifier = Modifier.weight(1f)) {
+                        OutlinedButton(onClick = { onToggle.invoke() }, modifier = Modifier.weight(1f)) {
                             Text(if (medication.active) "Pausar" else "Activar")
                         }
                     if (onDelete != null)
@@ -258,7 +258,7 @@ private fun MedicationCard(
                             color = if (medication.isPublic) MaterialTheme.colorScheme.primary
                                     else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f))
-                        Switch(checked = medication.isPublic, onCheckedChange = { onTogglePublic() })
+                        Switch(checked = medication.isPublic, onCheckedChange = { onTogglePublic?.invoke() })
                     }
                 }
             }
@@ -272,7 +272,7 @@ private fun MedicationCard(
             text  = { Text("Se cancelarán las notificaciones de ${medication.name}.") },
             confirmButton = {
                 Button(
-                    onClick = { onDelete(); confirmDelete = false },
+                    onClick = { onDelete?.invoke(); confirmDelete = false },
                     colors  = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) { Text("Eliminar") }
             },
