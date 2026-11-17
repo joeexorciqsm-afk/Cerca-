@@ -28,36 +28,37 @@ fun MainScreen(
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick  = { selectedTab = 0 },
+                    selected = selectedTab == 0, onClick = { selectedTab = 0 },
                     alwaysShowLabel = true,
                     icon  = { Text("📞", fontSize = 20.sp) },
                     label = { Text("Contactos", fontSize = 10.sp) }
                 )
                 NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick  = { selectedTab = 1 },
+                    selected = selectedTab == 1, onClick = { selectedTab = 1 },
                     alwaysShowLabel = true,
                     icon  = { Text("🎤", fontSize = 20.sp) },
                     label = { Text("Voz", fontSize = 10.sp) }
                 )
                 NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick  = { selectedTab = 2 },
+                    selected = selectedTab == 2, onClick = { selectedTab = 2 },
                     alwaysShowLabel = true,
                     icon  = { Text("🆘", fontSize = 24.sp) },
                     label = { Text("SOS", fontSize = 10.sp) }
                 )
                 NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick  = { selectedTab = 3 },
+                    selected = selectedTab == 3, onClick = { selectedTab = 3 },
                     alwaysShowLabel = true,
                     icon  = { Text("💊", fontSize = 20.sp) },
                     label = { Text("Meds", fontSize = 10.sp) }
                 )
                 NavigationBarItem(
-                    selected = selectedTab == 4,
-                    onClick  = { selectedTab = 4 },
+                    selected = selectedTab == 4, onClick = { selectedTab = 4 },
+                    alwaysShowLabel = true,
+                    icon  = { Text("🏠", fontSize = 20.sp) },
+                    label = { Text("Familia", fontSize = 10.sp) }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 5, onClick = { selectedTab = 5 },
                     alwaysShowLabel = true,
                     icon  = { Text("👤", fontSize = 20.sp) },
                     label = { Text("Perfil", fontSize = 10.sp) }
@@ -65,29 +66,32 @@ fun MainScreen(
             }
         }
     ) { innerPadding ->
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
+        Surface(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             when (selectedTab) {
-                0    -> ContactsScreen(viewModel = contactsViewModel)
-                1    -> VoiceScreen(
-                            contactsViewModel   = contactsViewModel,
-                            authViewModel       = authViewModel,
-                            medicationViewModel = medicationViewModel,
-                            emergencyViewModel  = emergencyViewModel
-                        )
-                2    -> EmergencyScreen(
-                            authViewModel      = authViewModel,
-                            emergencyViewModel = emergencyViewModel
-                        )
-                3    -> MedicationsScreen(viewModel = medicationViewModel)
+                0 -> ContactsScreen(viewModel = contactsViewModel)
+                1 -> VoiceScreen(
+                        contactsViewModel   = contactsViewModel,
+                        authViewModel       = authViewModel,
+                        medicationViewModel = medicationViewModel,
+                        emergencyViewModel  = emergencyViewModel
+                    )
+                2 -> EmergencyScreen(
+                        authViewModel      = authViewModel,
+                        emergencyViewModel = emergencyViewModel
+                    )
+                3 -> MedicationsScreen(
+                        viewModel     = medicationViewModel,
+                        authViewModel = authViewModel
+                    )
+                4 -> FamilyDashboardScreen(
+                        viewModel           = authViewModel,
+                        medicationViewModel = medicationViewModel
+                    )
                 else -> HomeScreen(
-                            viewModel     = authViewModel,
-                            onLogout      = onLogout,
-                            onNavigateSOS = { selectedTab = 2 }
-                        )
+                        viewModel     = authViewModel,
+                        onLogout      = onLogout,
+                        onNavigateSOS = { selectedTab = 2 }
+                    )
             }
         }
     }
