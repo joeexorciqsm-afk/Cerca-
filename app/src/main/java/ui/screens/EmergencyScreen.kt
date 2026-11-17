@@ -501,7 +501,7 @@ private fun DrivingModeTab(
             Row(modifier = Modifier.padding(14.dp)) {
                 Text("💡", fontSize = 20.sp)
                 Spacer(Modifier.width(10.dp))
-                Text("Al pulsar SOS en modo conducción se envía automáticamente tu ubicación GPS con el mensaje "Emergencia en carretera" a toda tu familia.",
+                Text("Al pulsar SOS en modo conducción se envía automáticamente tu ubicación GPS con el mensaje \"Emergencia en carretera\" a toda tu familia.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer)
             }
