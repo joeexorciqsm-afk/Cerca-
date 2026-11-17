@@ -20,10 +20,14 @@ import java.util.Calendar
 class MedicationViewModel(application: Application) : AndroidViewModel(application) {
 
     private val firestore = FirebaseFirestore.getInstance()
-    private val auth = FirebaseAuth.getInstance()
+    private val auth      = FirebaseAuth.getInstance()
 
     private val _medications = MutableStateFlow<List<Medication>>(emptyList())
     val medications: StateFlow<List<Medication>> = _medications
+
+    // Medicamentos públicos de los miembros de la familia
+    private val _familyMedications = MutableStateFlow<List<Medication>>(emptyList())
+    val familyMedications: StateFlow<List<Medication>> = _familyMedications
 
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading
@@ -33,53 +37,41 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun uid() = auth.currentUser?.uid
 
-    // ─── Firestore: users/{uid}/medications ───────────────────────────────────
+    // ── Mis medicamentos ──────────────────────────────────────────────────────
 
     fun loadMedications() {
         val uid = uid() ?: return
         _loading.value = true
-        firestore.collection("users").document(uid)
-            .collection("medications")
-            .get()
+        firestore.collection("users").document(uid).collection("medications").get()
             .addOnSuccessListener { snap ->
                 _medications.value = snap.documents.mapNotNull { doc ->
-                    val m = doc.toObject(Medication::class.java) ?: return@mapNotNull null
-                    m.copy(id = doc.id)
+                    doc.toObject(Medication::class.java)?.copy(id = doc.id)
                 }.sortedBy { "%02d:%02d".format(it.hour, it.minute) }
                 _loading.value = false
             }
-            .addOnFailureListener { e ->
-                Log.w("MedVM", "loadMedications: ${e.message}")
-                _loading.value = false
-            }
+            .addOnFailureListener { _loading.value = false; Log.w("MedVM", it.message ?: "") }
     }
 
     fun addMedication(med: Medication) {
         val uid = uid() ?: return
         _loading.value = true
-        val ref = firestore.collection("users").document(uid)
-            .collection("medications").document()
-        val withId = med.copy(id = ref.id)
+        val ref = firestore.collection("users").document(uid).collection("medications").document()
+        val withId = med.copy(id = ref.id, ownerId = uid)
         ref.set(withId)
             .addOnSuccessListener {
                 _message.value = "✅ Recordatorio añadido"
                 scheduleAllAlarms(withId)
                 loadMedications()
             }
-            .addOnFailureListener { e ->
-                _message.value = "Error: ${e.message}"
-                _loading.value = false
-            }
+            .addOnFailureListener { _message.value = "Error: ${it.message}"; _loading.value = false }
     }
 
-    /** Versión pública usada por el asistente de voz y el BootReceiver */
     fun addMedicationAndSchedule(med: Medication) = addMedication(med)
 
     fun toggleActive(med: Medication) {
         val uid = uid() ?: return
         val updated = med.copy(active = !med.active)
-        firestore.collection("users").document(uid)
-            .collection("medications").document(med.id)
+        firestore.collection("users").document(uid).collection("medications").document(med.id)
             .set(mapOf("active" to updated.active), SetOptions.merge())
             .addOnSuccessListener {
                 if (updated.active) scheduleAllAlarms(updated) else cancelAllAlarms(med)
@@ -87,20 +79,26 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
             }
     }
 
+    fun togglePublic(med: Medication) {
+        val uid = uid() ?: return
+        val updated = med.copy(isPublic = !med.isPublic)
+        firestore.collection("users").document(uid).collection("medications").document(med.id)
+            .set(mapOf("isPublic" to updated.isPublic), SetOptions.merge())
+            .addOnSuccessListener {
+                _message.value = if (updated.isPublic) "👨‍👩‍👧 Visible para tu familia" else "🔒 Solo visible para ti"
+                loadMedications()
+            }
+    }
+
     fun deleteMedication(med: Medication) {
         val uid = uid() ?: return
         cancelAllAlarms(med)
-        firestore.collection("users").document(uid)
-            .collection("medications").document(med.id)
+        firestore.collection("users").document(uid).collection("medications").document(med.id)
             .delete()
-            .addOnSuccessListener {
-                _message.value = "🗑️ Recordatorio eliminado"
-                loadMedications()
-            }
-            .addOnFailureListener { e -> _message.value = "Error al eliminar: ${e.message}" }
+            .addOnSuccessListener { _message.value = "🗑️ Recordatorio eliminado"; loadMedications() }
+            .addOnFailureListener { _message.value = "Error: ${it.message}" }
     }
 
-    /** Busca por nombre (exacto, startsWith, contains) y elimina el primero que coincida */
     fun deleteMedicationByName(name: String): String? {
         val clean = name.lowercase().trim()
         val found = _medications.value.firstOrNull { m ->
@@ -111,57 +109,81 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         return found.name
     }
 
-    fun clearMessage() { _message.value = null }
-
-    // ─── AlarmManager ─────────────────────────────────────────────────────────
+    // ── Medicamentos públicos de la familia ───────────────────────────────────
 
     /**
-     * Programa una alarma exacta por cada día de la semana seleccionado.
-     * Usa setExactAndAllowWhileIdle para garantizar disparo aunque el teléfono esté en Doze.
-     * Tras el disparo, MedicationReceiver vuelve a llamar a scheduleNextAlarm.
+     * Carga los medicamentos marcados como públicos de todos los miembros
+     * de la familia (excepto el propio usuario).
      */
+    fun loadFamilyMedications(familyMembers: List<com.cerca.app.model.User>) {
+        val myUid = uid() ?: return
+        val others = familyMembers.filter { it.id != myUid }
+        if (others.isEmpty()) { _familyMedications.value = emptyList(); return }
+
+        val results = mutableListOf<Medication>()
+        var pending = others.size
+
+        others.forEach { member ->
+            firestore.collection("users").document(member.id)
+                .collection("medications")
+                .whereEqualTo("isPublic", true)
+                .get()
+                .addOnSuccessListener { snap ->
+                    val meds = snap.documents.mapNotNull { doc ->
+                        doc.toObject(Medication::class.java)?.copy(
+                            id        = doc.id,
+                            ownerId   = member.id,
+                            ownerName = member.name
+                        )
+                    }
+                    synchronized(results) { results.addAll(meds) }
+                    pending--
+                    if (pending == 0) {
+                        _familyMedications.value = results.sortedBy { it.ownerName }
+                    }
+                }
+                .addOnFailureListener {
+                    pending--
+                    if (pending == 0) _familyMedications.value = results.sortedBy { it.ownerName }
+                }
+        }
+    }
+
+    fun clearMessage() { _message.value = null }
+
+    // ── AlarmManager ──────────────────────────────────────────────────────────
+
     fun scheduleAllAlarms(med: Medication) {
         if (!med.active) return
-        med.days.forEach { calDay -> scheduleNextAlarm(med, calDay) }
+        med.days.forEach { scheduleNextAlarm(med, it) }
     }
 
     fun scheduleNextAlarm(med: Medication, calDay: Int) {
         if (!med.active) return
         val ctx = getApplication<Application>()
-        val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val notifId = notifIdFor(med.id, calDay)
-        val pi = buildPendingIntent(ctx, med, notifId, calDay)
-        val triggerAt = nextOccurrence(calDay, med.hour, med.minute)
-
+        val am  = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val pi  = buildPendingIntent(ctx, med, notifIdFor(med.id, calDay), calDay)
+        val at  = nextOccurrence(calDay, med.hour, med.minute)
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
-            } else {
-                am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi)
-            }
-            Log.d("MedVM", "Alarma programada: ${med.name} día=$calDay " +
-                "en ${"%02d:%02d".format(med.hour, med.minute)}")
-        } catch (e: Exception) {
-            Log.w("MedVM", "scheduleNextAlarm error: ${e.message}")
-        }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+            else
+                am.setExact(AlarmManager.RTC_WAKEUP, at, pi)
+        } catch (e: Exception) { Log.w("MedVM", e.message ?: "") }
     }
 
     fun cancelAllAlarms(med: Medication) {
         val ctx = getApplication<Application>()
-        val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val am  = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         med.days.forEach { calDay ->
-            val pi = buildPendingIntent(ctx, med, notifIdFor(med.id, calDay), calDay)
-            am.cancel(pi)
+            am.cancel(buildPendingIntent(ctx, med, notifIdFor(med.id, calDay), calDay))
         }
     }
 
-    /** Reprograma todas las alarmas activas (usado por BootReceiver) */
     fun rescheduleAll() {
         val uid = uid() ?: return
-        firestore.collection("users").document(uid)
-            .collection("medications")
-            .whereEqualTo("active", true)
-            .get()
+        firestore.collection("users").document(uid).collection("medications")
+            .whereEqualTo("active", true).get()
             .addOnSuccessListener { snap ->
                 snap.documents.forEach { doc ->
                     val m = doc.toObject(Medication::class.java)?.copy(id = doc.id) ?: return@forEach
@@ -170,13 +192,9 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
             }
     }
 
-    // ─── Helpers ──────────────────────────────────────────────────────────────
-
-    private fun buildPendingIntent(
-        ctx: Context, med: Medication, notifId: Int, calDay: Int
-    ): PendingIntent {
+    private fun buildPendingIntent(ctx: Context, med: Medication, notifId: Int, calDay: Int): PendingIntent {
         val intent = Intent(ctx, MedicationReceiver::class.java).apply {
-            action = "ALARM_${notifId}"          // acción única para que PendingIntent no colisione
+            action = "ALARM_$notifId"
             putExtra(MedicationReceiver.EXTRA_MED_NAME,  med.name)
             putExtra(MedicationReceiver.EXTRA_MED_DOSE,  med.dose)
             putExtra(MedicationReceiver.EXTRA_NOTIF_ID,  notifId)
@@ -184,21 +202,12 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
             putExtra(MedicationReceiver.EXTRA_CAL_DAY,   calDay)
             putExtra(MedicationReceiver.EXTRA_HOUR,      med.hour)
             putExtra(MedicationReceiver.EXTRA_MINUTE,    med.minute)
-            putStringArrayListExtra(
-                MedicationReceiver.EXTRA_DAYS,
-                ArrayList(med.days.map { it.toString() })
-            )
+            putStringArrayListExtra(MedicationReceiver.EXTRA_DAYS, ArrayList(med.days.map { it.toString() }))
         }
-        return PendingIntent.getBroadcast(
-            ctx, notifId, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        return PendingIntent.getBroadcast(ctx, notifId, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
-    /**
-     * Próxima ocurrencia de [dayOfWeek] (Calendar.DAY_OF_WEEK) a la hora indicada.
-     * Si ya pasó hoy avanza 7 días.
-     */
     fun nextOccurrence(dayOfWeek: Int, hour: Int, minute: Int): Long {
         val cal = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, hour)
@@ -213,5 +222,5 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         return cal.timeInMillis
     }
 
-    fun notifIdFor(medId: String, day: Int): Int = (medId + day.toString()).hashCode()
+    fun notifIdFor(medId: String, day: Int) = (medId + day.toString()).hashCode()
 }

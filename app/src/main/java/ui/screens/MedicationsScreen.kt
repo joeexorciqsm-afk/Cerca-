@@ -15,36 +15,43 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cerca.app.model.Medication
+import com.cerca.app.viewmodel.AuthViewModel
 import com.cerca.app.viewmodel.MedicationViewModel
 
 private val DAY_LABELS   = listOf("L","M","X","J","V","S","D")
 private val DAY_CALENDAR = listOf(2, 3, 4, 5, 6, 7, 1)
 
 @Composable
-fun MedicationsScreen(viewModel: MedicationViewModel = viewModel()) {
-    val medications by viewModel.medications.collectAsState()
-    val loading     by viewModel.loading.collectAsState()
-    val message     by viewModel.message.collectAsState()
-    var showForm    by remember { mutableStateOf(false) }
+fun MedicationsScreen(
+    viewModel: MedicationViewModel = viewModel(),
+    authViewModel: AuthViewModel = viewModel()
+) {
+    val medications    by viewModel.medications.collectAsState()
+    val familyMeds     by viewModel.familyMedications.collectAsState()
+    val familyMembers  by authViewModel.familyMembers.collectAsState()
+    val loading        by viewModel.loading.collectAsState()
+    val message        by viewModel.message.collectAsState()
+    var showForm       by remember { mutableStateOf(false) }
+    var selectedTab    by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) { viewModel.loadMedications() }
+    LaunchedEffect(familyMembers) {
+        if (familyMembers.isNotEmpty()) viewModel.loadFamilyMedications(familyMembers)
+    }
     LaunchedEffect(message) {
         if (message != null) { kotlinx.coroutines.delay(2500); viewModel.clearMessage() }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-
         // ── Cabecera ──────────────────────────────────────────────────────
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("💊 Medicamentos",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f))
-            FilledTonalButton(onClick = { showForm = !showForm }) {
-                Text(if (showForm) "✕ Cerrar" else "+ Nuevo", fontWeight = FontWeight.SemiBold)
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("💊 Medicamentos", style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            if (selectedTab == 0) {
+                FilledTonalButton(onClick = { showForm = !showForm }) {
+                    Text(if (showForm) "✕ Cerrar" else "+ Nuevo", fontWeight = FontWeight.SemiBold)
+                }
             }
         }
 
@@ -54,10 +61,18 @@ fun MedicationsScreen(viewModel: MedicationViewModel = viewModel()) {
                 modifier = Modifier.padding(horizontal = 16.dp))
         }
 
+        // ── Tabs ──────────────────────────────────────────────────────────
+        TabRow(selectedTabIndex = selectedTab) {
+            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 },
+                text = { Text("💊 Míos") })
+            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 },
+                text = { Text("👨‍👩‍👧 Familia") })
+        }
+
         HorizontalDivider()
 
         // ── Formulario ────────────────────────────────────────────────────
-        if (showForm) {
+        if (showForm && selectedTab == 0) {
             AddMedicationForm(
                 onAdd    = { med -> viewModel.addMedication(med); showForm = false },
                 onCancel = { showForm = false }
@@ -65,42 +80,83 @@ fun MedicationsScreen(viewModel: MedicationViewModel = viewModel()) {
             HorizontalDivider()
         }
 
-        // ── Lista ─────────────────────────────────────────────────────────
-        when {
-            loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+        when (selectedTab) {
+            0 -> MyMedicationsContent(medications, loading, viewModel)
+            1 -> FamilyMedicationsContent(familyMeds)
+        }
+    }
+}
+
+@Composable
+private fun MyMedicationsContent(
+    medications: List<Medication>,
+    loading: Boolean,
+    viewModel: MedicationViewModel
+) {
+    when {
+        loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        medications.isEmpty() -> Box(Modifier.fillMaxSize().padding(32.dp),
+            contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("💊", fontSize = 48.sp)
+                Spacer(Modifier.height(12.dp))
+                Text("Sin recordatorios aún", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Pulsa + Nuevo para agregar uno", style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
             }
-            medications.isEmpty() -> Box(
-                Modifier.fillMaxSize().padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("💊", fontSize = 48.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Text("Sin recordatorios aún",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(4.dp))
-                    Text("Pulsa + Nuevo para agregar uno",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center)
+        }
+        else -> LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()
+        ) {
+            items(medications, key = { it.id }) { med ->
+                MedicationCard(
+                    medication = med,
+                    onToggle   = { viewModel.toggleActive(med) },
+                    onDelete   = { viewModel.deleteMedication(med) },
+                    onTogglePublic = { viewModel.togglePublic(med) }
+                )
+            }
+            item { Spacer(Modifier.height(8.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun FamilyMedicationsContent(familyMeds: List<Medication>) {
+    if (familyMeds.isEmpty()) {
+        Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("👨‍👩‍👧", fontSize = 48.sp)
+                Text("Sin medicamentos compartidos",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Los familiares pueden compartir sus medicamentos\nactivando la opción 'Compartir con familia' en cada uno.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            }
+        }
+    } else {
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()
+        ) {
+            val grouped = familyMeds.groupBy { it.ownerName.ifBlank { "Familiar" } }
+            grouped.forEach { (owner, meds) ->
+                item {
+                    Text("👤 $owner", style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(vertical = 4.dp))
+                }
+                items(meds, key = { it.id }) { med ->
+                    MedicationCard(medication = med, readOnly = true)
                 }
             }
-            else -> LazyColumn(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(medications, key = { it.id }) { med ->
-                    MedicationCard(
-                        medication = med,
-                        onToggle   = { viewModel.toggleActive(med) },
-                        onDelete   = { viewModel.deleteMedication(med) }
-                    )
-                }
-                item { Spacer(Modifier.height(8.dp)) }
-            }
+            item { Spacer(Modifier.height(8.dp)) }
         }
     }
 }
@@ -110,8 +166,10 @@ fun MedicationsScreen(viewModel: MedicationViewModel = viewModel()) {
 @Composable
 private fun MedicationCard(
     medication: Medication,
-    onToggle: () -> Unit,
-    onDelete: () -> Unit
+    onToggle: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
+    onTogglePublic: (() -> Unit)? = null,
+    readOnly: Boolean = false
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
 
@@ -176,16 +234,33 @@ private fun MedicationCard(
 
             Spacer(Modifier.height(10.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onToggle, modifier = Modifier.weight(1f)) {
-                    Text(if (medication.active) "Pausar" else "Activar")
+            if (!readOnly) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (onToggle != null)
+                        OutlinedButton(onClick = onToggle, modifier = Modifier.weight(1f)) {
+                            Text(if (medication.active) "Pausar" else "Activar")
+                        }
+                    if (onDelete != null)
+                        OutlinedButton(onClick = { confirmDelete = true },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error)
+                        ) { Text("Eliminar") }
                 }
-                OutlinedButton(
-                    onClick = { confirmDelete = true },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Eliminar") }
+                // Toggle compartir con familia
+                if (onTogglePublic != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()) {
+                        Text(if (medication.isPublic) "👨‍👩‍👧 Visible para la familia"
+                             else "🔒 Solo visible para mí",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (medication.isPublic) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f))
+                        Switch(checked = medication.isPublic, onCheckedChange = { onTogglePublic() })
+                    }
+                }
             }
         }
     }

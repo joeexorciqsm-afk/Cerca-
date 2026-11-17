@@ -199,60 +199,69 @@ fun VoiceScreen(
 
         // ── EMERGENCIA SOS ────────────────────────────────────────────────
 
-        // "envía SOS" / "manda alerta" / "llama al 911" / "emergencia" / "ayuda"
+        // Llamar al 911 directamente
+        if (t.contains("llama al 911") || t.contains("llama a 911") ||
+            t.contains("marca el 911") || t.trim() == "911") {
+            emergencyViewModel.call911()
+            return "📞 Llamando al 911"
+        }
+
+        // Modo conducción / accidente / carretera
+        if (t.contains("emergencia en carretera") || t.contains("accidente") ||
+            t.contains("choque") || t.contains("modo conducción") || t.contains("modo conduccion")) {
+            val user = User(name = userName, phone = userPhone, age = userAge, familyCode = familyCode)
+            if (familyCode.isBlank()) return "No tienes familia vinculada."
+            if (hasLocationPerm) {
+                emergencyViewModel.sendSOS(user, "Emergencia en carretera", "driving")
+                return "🚗 Alerta de conducción enviada a tu familia"
+            } else {
+                pendingSOS = "Emergencia en carretera"
+                locationPermLauncher.launch(arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                return "🚗 Solicitando ubicación y enviando alerta"
+            }
+        }
+
+        // "envía SOS" / "manda alerta" / "emergencia" / "ayuda"
         val triggerSOS = listOf(
             "envía sos", "envia sos", "manda sos", "enviar sos",
             "manda una alerta", "envía una alerta", "envia una alerta",
-            "envía alerta de emergencia", "envia alerta de emergencia",
             "emergencia", "necesito ayuda", "llama a emergencias",
             "activa el sos", "activa sos", "sos"
         ).firstOrNull { t.contains(it) }
 
         if (triggerSOS != null) {
-            // Extraer mensaje personalizado si lo hay
-            val msg = listOf(
-                "emergencia ", "necesito ayuda ", "envía sos ", "envia sos ",
-                "manda sos ", "manda una alerta "
-            ).firstOrNull { t.contains(it) }
+            val msg = listOf("emergencia ", "necesito ayuda ", "envía sos ", "envia sos ",
+                "manda sos ", "manda una alerta ")
+                .firstOrNull { t.contains(it) }
                 ?.let { t.substringAfter(it).trim().trim(',', '.') }
-                ?.ifBlank { null }
-                ?: "¡Necesito ayuda!"
+                ?.ifBlank { null } ?: "¡Necesito ayuda!"
 
             val user = User(name = userName, phone = userPhone, age = userAge, familyCode = familyCode)
-
-            if (familyCode.isBlank()) {
-                return "No tienes familia vinculada. Ve a Perfil, Mi familia, y comparte tu código."
-            }
+            if (familyCode.isBlank()) return "No tienes familia vinculada. Ve a Perfil, Mi familia."
 
             if (hasLocationPerm) {
                 emergencyViewModel.sendSOS(user, msg)
-                return "🆘 Enviando alerta de emergencia a tu familia con tu ubicación"
+                return "🆘 Enviando alerta a tu familia con tu ubicación"
             } else {
                 pendingSOS = msg
                 locationPermLauncher.launch(arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                ))
-                return "🆘 Solicitando permiso de ubicación y enviando alerta"
+                    Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                return "🆘 Solicitando ubicación y enviando alerta"
             }
         }
 
-        // "cancela la alerta" / "ya estoy bien" / "falsa alarma"
         if (t.contains("cancela la alerta") || t.contains("falsa alarma") ||
             t.contains("ya estoy bien") || t.contains("cancela el sos")) {
             emergencyViewModel.resetState()
-            return "✅ Alerta cancelada. Me alegra que estés bien."
+            return "✅ Alerta cancelada"
         }
 
-        // "¿hay alertas de mi familia?"
         if (t.contains("alertas de mi familia") || t.contains("hay emergencias") ||
             t.contains("alguna alerta")) {
             val activas = emergencyViewModel.familyAlerts.value
             return if (activas.isEmpty()) "No hay alertas activas de tu familia"
-            else {
-                val nombres = activas.joinToString(", ") { it.userName.ifBlank { "un familiar" } }
-                "⚠️ Hay ${activas.size} alerta${if (activas.size > 1) "s" else ""} activa${if (activas.size > 1) "s" else ""} de: $nombres"
-            }
+            else "⚠️ ${activas.size} alerta${if (activas.size > 1) "s" else ""} de: ${activas.joinToString(", ") { it.userName }}"
         }
 
         // ── MEDICAMENTOS ──────────────────────────────────────────────────
@@ -412,6 +421,21 @@ fun VoiceScreen(
         if (t.contains("mi edad") || t.contains("cuántos años") || t.contains("cuantos años"))
             return if (userAge.isNotBlank()) "Tienes $userAge años" else "Aún no has guardado tu edad"
 
+        // Info médica por voz
+        if (t.contains("mi tipo de sangre") || t.contains("mi sangre")) {
+            val bt = authViewModel.bloodType.value
+            return if (bt.isNotBlank()) "Tu tipo de sangre es $bt" else "No tienes tipo de sangre guardado"
+        }
+        if (t.contains("mis alergias") || t.contains("tengo alergias")) {
+            val al = authViewModel.allergies.value
+            return if (al.isNotBlank()) "Tus alergias: $al" else "No tienes alergias guardadas"
+        }
+        if (t.contains("mis padecimientos") || t.contains("mis enfermedades") ||
+            t.contains("mi condición") || t.contains("mi condicion")) {
+            val cond = authViewModel.conditions.value
+            return if (cond.isNotBlank()) "Tus padecimientos: $cond" else "No tienes padecimientos guardados"
+        }
+
         // ── FAMILIA ───────────────────────────────────────────────────────
 
         if (t.contains("mi código") || t.contains("mi codigo") ||
@@ -567,7 +591,8 @@ private fun CommandExamples() {
             ExampleGroup("🆘", "Emergencia", listOf(
                 "\"Emergencia\"",
                 "\"SOS\"",
-                "\"Necesito ayuda\""
+                "\"Llama al 911\"",
+                "\"Accidente\"  /  \"Choque\""
             ))
             Spacer(Modifier.height(12.dp))
             ExampleGroup("💊", "Medicamentos", listOf(
@@ -584,8 +609,8 @@ private fun CommandExamples() {
             Spacer(Modifier.height(12.dp))
             ExampleGroup("👤", "Mi perfil", listOf(
                 "\"Mi nombre es Ana\"",
-                "\"Mi teléfono\"",
-                "\"Mi código\""
+                "\"Mi tipo de sangre\"",
+                "\"Mis padecimientos\""
             ))
         }
     }
