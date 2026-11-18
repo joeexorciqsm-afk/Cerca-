@@ -103,7 +103,6 @@ private fun MembersTab(familyGroups: List<com.cerca.app.model.FamilyGroup>, curr
     ) {
         familyGroups.forEach { group ->
             item {
-                // Etiqueta del grupo
                 Text(
                     group.name.ifBlank { group.code },
                     style = MaterialTheme.typography.labelLarge,
@@ -111,18 +110,17 @@ private fun MembersTab(familyGroups: List<com.cerca.app.model.FamilyGroup>, curr
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(vertical = 2.dp)
                 )
-            }
-            val others = group.members.filter { it.id != currentUid }
-            if (others.isEmpty()) {
-                item {
+                val others = group.members.filter { it.id != currentUid }
+                if (others.isEmpty()) {
                     Text("Solo tú en esta familia",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
-                }
-            } else {
-                androidx.compose.foundation.lazy.items(others, key = { "${group.code}-${it.id}" }) { member ->
-                    MemberCard(member = member, isMe = false)
+                } else {
+                    others.forEach { member ->
+                        MemberCard(member = member, isMe = false)
+                        Spacer(Modifier.height(10.dp))
+                    }
                 }
             }
         }
