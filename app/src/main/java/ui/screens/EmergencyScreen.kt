@@ -42,31 +42,39 @@ fun EmergencyScreen(
     authViewModel: AuthViewModel,
     emergencyViewModel: EmergencyViewModel = viewModel()
 ) {
-    val context = LocalContext.current
-    val userName    by authViewModel.userName.collectAsState()
-    val userPhone   by authViewModel.phone.collectAsState()
-    val userAge     by authViewModel.age.collectAsState()
-    val familyCode  by authViewModel.familyCode.collectAsState()
-    val bloodType   by authViewModel.bloodType.collectAsState()
-    val conditions  by authViewModel.conditions.collectAsState()
-    val allergies   by authViewModel.allergies.collectAsState()
+    val context       = LocalContext.current
+    val userName      by authViewModel.userName.collectAsState()
+    val userPhone     by authViewModel.phone.collectAsState()
+    val userAge       by authViewModel.age.collectAsState()
+    val myFamilyCode  by authViewModel.myFamilyCode.collectAsState()
+    val bloodType     by authViewModel.bloodType.collectAsState()
+    val conditions    by authViewModel.conditions.collectAsState()
+    val allergies     by authViewModel.allergies.collectAsState()
     val familyMembers by authViewModel.familyMembers.collectAsState()
+    val familyGroups  by authViewModel.familyGroups.collectAsState()
 
     val state         by emergencyViewModel.state.collectAsState()
     val myAlerts      by emergencyViewModel.myAlerts.collectAsState()
     val familyAlerts  by emergencyViewModel.familyAlerts.collectAsState()
     val familyHistory by emergencyViewModel.familyHistory.collectAsState()
 
-    val currentUser = remember(userName, userPhone, userAge, familyCode, bloodType, conditions, allergies) {
-        User(name = userName, phone = userPhone, age = userAge, familyCode = familyCode,
+    // Familia seleccionada: null = todas
+    var selectedFamilyCode by remember { mutableStateOf<String?>(null) }
+
+    val currentUser = remember(userName, userPhone, userAge, myFamilyCode, bloodType, conditions, allergies) {
+        User(name = userName, phone = userPhone, age = userAge, familyCode = myFamilyCode,
             bloodType = bloodType, conditions = conditions, allergies = allergies)
     }
 
-    LaunchedEffect(familyCode) { emergencyViewModel.loadAndSubscribe(currentUser) }
+    // Suscribir a todas las familias al iniciar
+    LaunchedEffect(familyGroups) {
+        val uid   = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: return@LaunchedEffect
+        val codes = familyGroups.map { it.code }
+        if (codes.isNotEmpty()) emergencyViewModel.loadAndSubscribeMulti(uid, codes)
+    }
+
     LaunchedEffect(state) {
-        if (state is EmergencyState.Sent) {
-            kotlinx.coroutines.delay(5_000); emergencyViewModel.resetState()
-        }
+        if (state is EmergencyState.Sent) { kotlinx.coroutines.delay(5_000); emergencyViewModel.resetState() }
     }
 
     var locationGranted by remember {
@@ -82,16 +90,31 @@ fun EmergencyScreen(
     ) { perms ->
         locationGranted = perms[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (locationGranted) emergencyViewModel.sendSOS(currentUser)
+        if (locationGranted) {
+            val codes = if (selectedFamilyCode != null) listOf(selectedFamilyCode!!)
+                        else familyGroups.map { it.code }
+            emergencyViewModel.sendSOS(currentUser, targetCodes = codes.ifEmpty { null })
+        }
     }
 
     var selectedTab      by remember { mutableStateOf(0) }
     var showCustomDialog by remember { mutableStateOf(false) }
     var customMessage    by remember { mutableStateOf("") }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    // Helper para lanzar SOS con la selección actual
+    fun launchSOS(msg: String = "¡Necesito ayuda!", type: String = "sos") {
+        val codes = if (selectedFamilyCode != null) listOf(selectedFamilyCode!!)
+                    else familyGroups.map { it.code }
+        if (locationGranted) {
+            emergencyViewModel.sendSOS(currentUser, msg, type, codes.ifEmpty { null })
+        } else {
+            permLauncher.launch(arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION))
+        }
+    }
 
-        // ── Cabecera ──────────────────────────────────────────────────────────
+    Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxWidth()
             .background(MaterialTheme.colorScheme.errorContainer)
             .padding(horizontal = 20.dp, vertical = 12.dp)) {
@@ -104,7 +127,13 @@ fun EmergencyScreen(
             }
         }
 
-        // ── Tabs ──────────────────────────────────────────────────────────────
+        // ── Selector de familia (solo si hay más de una) ───────────────────
+        FamilySelector(
+            groups       = familyGroups,
+            selectedCode = selectedFamilyCode,
+            onSelect     = { selectedFamilyCode = it }
+        )
+
         TabRow(selectedTabIndex = selectedTab) {
             Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 },
                 text = { Text("🆘 SOS") })
@@ -117,15 +146,11 @@ fun EmergencyScreen(
         when (selectedTab) {
             0 -> SOSTab(
                 state           = state,
-                familyMembers   = familyMembers,
+                familyGroups    = familyGroups,
+                selectedCode    = selectedFamilyCode,
                 familyAlerts    = familyAlerts,
                 locationGranted = locationGranted,
-                onSOS = {
-                    if (locationGranted) emergencyViewModel.sendSOS(currentUser)
-                    else permLauncher.launch(arrayOf(
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION))
-                },
+                onSOS           = { launchSOS() },
                 onCustomSOS     = { showCustomDialog = true },
                 on911           = { emergencyViewModel.call911() },
                 onReset         = { emergencyViewModel.resetState() },
@@ -142,19 +167,13 @@ fun EmergencyScreen(
             2 -> DrivingModeTab(
                 user            = currentUser,
                 locationGranted = locationGranted,
-                onSOS = {
-                    if (locationGranted) emergencyViewModel.sendSOS(currentUser, "Emergencia en carretera", "driving")
-                    else permLauncher.launch(arrayOf(
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION))
-                },
-                on911 = { emergencyViewModel.call911() },
-                context = context
+                onSOS           = { launchSOS("Emergencia en carretera", "driving") },
+                on911           = { emergencyViewModel.call911() },
+                context         = context
             )
         }
     }
 
-    // ── Diálogo mensaje personalizado ─────────────────────────────────────────
     if (showCustomDialog) {
         AlertDialog(
             onDismissRequest = { showCustomDialog = false },
@@ -172,11 +191,7 @@ fun EmergencyScreen(
                 Button(
                     onClick = {
                         showCustomDialog = false
-                        val msg = customMessage.ifBlank { "¡Necesito ayuda!" }
-                        if (locationGranted) emergencyViewModel.sendSOS(currentUser, msg)
-                        else permLauncher.launch(arrayOf(
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.ACCESS_COARSE_LOCATION))
+                        launchSOS(customMessage.ifBlank { "¡Necesito ayuda!" })
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) { Text("🆘 Enviar") }
@@ -191,7 +206,8 @@ fun EmergencyScreen(
 @Composable
 private fun SOSTab(
     state: EmergencyState,
-    familyMembers: List<User>,
+    familyGroups: List<com.cerca.app.model.FamilyGroup>,
+    selectedCode: String?,
     familyAlerts: List<EmergencyAlert>,
     locationGranted: Boolean,
     onSOS: () -> Unit,
@@ -201,38 +217,39 @@ private fun SOSTab(
     onResolve: (String) -> Unit,
     context: android.content.Context
 ) {
+    // Miembros que recibirán la alerta según selección
+    val targetMembers = if (selectedCode != null)
+        familyGroups.firstOrNull { it.code == selectedCode }?.members ?: emptyList()
+    else
+        familyGroups.flatMap { it.members }.distinctBy { it.id }
+
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Botón SOS
         item { SOSButton(state = state, onSOS = onSOS, onCustomSOS = onCustomSOS, onReset = onReset) }
 
-        // Botón 911
         item {
-            Button(
-                onClick  = on911,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D47A1))
-            ) {
-                Text("📞 Llamar al 911", fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                    color = Color.White)
-            }
+            Button(onClick = on911, modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D47A1))
+            ) { Text("📞 Llamar al 911", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
         }
 
-        // Quién recibe la alerta
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Text("¿Quién recibe la alerta?",
+                    val destLabel = if (selectedCode != null)
+                        familyGroups.firstOrNull { it.code == selectedCode }?.name?.ifBlank { selectedCode } ?: selectedCode
+                    else "todas las familias"
+                    Text("Alerta para: $destLabel",
                         style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
-                    if (familyMembers.isEmpty()) {
-                        Text("Aún no tienes familiares vinculados. Ve a Perfil → Mi familia.",
+                    if (targetMembers.isEmpty()) {
+                        Text("Aún no hay miembros en esta familia.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
-                        familyMembers.forEach { m ->
+                        targetMembers.forEach { m ->
                             Row(verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(vertical = 3.dp)) {
                                 Text("👤", fontSize = 16.sp)
@@ -252,10 +269,9 @@ private fun SOSTab(
             }
         }
 
-        // Alertas activas de familiares
         if (familyAlerts.isNotEmpty()) {
             item {
-                Text("⚠️ Alertas activas de familiares",
+                Text("⚠️ Alertas activas",
                     style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.error)
             }
