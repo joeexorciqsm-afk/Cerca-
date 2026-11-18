@@ -1,16 +1,20 @@
 package com.cerca.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -30,121 +34,171 @@ fun FamilyScreen(
     val familyGroups by viewModel.familyGroups.collectAsState()
     val message      by viewModel.familyMessage.collectAsState()
     val currentUid   = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+    val clipboard    = LocalClipboardManager.current
 
-    var joinCodeInput by remember { mutableStateOf("") }
+    var joinCodeInput   by remember { mutableStateOf("") }
     var showLeaveDialog by remember { mutableStateOf<String?>(null) }
+    var copied          by remember { mutableStateOf(false) }
 
     LaunchedEffect(message) {
-        if (message != null) {
-            kotlinx.coroutines.delay(2500)
-            viewModel.clearFamilyMessage()
-        }
+        if (message != null) { kotlinx.coroutines.delay(2500); viewModel.clearFamilyMessage() }
+    }
+    LaunchedEffect(copied) {
+        if (copied) { kotlinx.coroutines.delay(2000); copied = false }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // ── Cabecera ──────────────────────────────────────────────────────────
-        TextButton(onClick = onBack) {
-            Text("← Volver", style = MaterialTheme.typography.titleMedium)
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onBack) {
+                    Text("← Volver", style = MaterialTheme.typography.titleMedium)
+                }
+            }
+            Text("Mis familias",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold)
+            if (message != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(message!!, color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodyMedium)
+            }
         }
-
-        Text("Mis familias", style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold)
-
-        if (message != null) {
-            Spacer(Modifier.height(8.dp))
-            Text(message!!, color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyMedium)
-        }
-
-        Spacer(Modifier.height(16.dp))
 
         // ── Mi código para invitar ────────────────────────────────────────────
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape    = RoundedCornerShape(16.dp),
+                colors   = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Text("Mi código para invitar", style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = if (myFamilyCode.isNotBlank()) myFamilyCode else "—",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    letterSpacing = 4.sp
-                )
-                Spacer(Modifier.height(4.dp))
-                Text("Compártelo para que te agreguen a su familia",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                    textAlign = TextAlign.Center)
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("🔑 Mi código para invitar",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Spacer(Modifier.height(10.dp))
+                    // Código grande con fondo destacado
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    ) {
+                        Text(
+                            text = if (myFamilyCode.isNotBlank()) myFamilyCode else "—",
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            letterSpacing = 6.sp,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text("Comparte este código para que te agreguen a su familia",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                        textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(10.dp))
+                    // Botón copiar
+                    FilledTonalButton(
+                        onClick = {
+                            clipboard.setText(AnnotatedString(myFamilyCode))
+                            copied = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (copied) "✅ Copiado" else "📋 Copiar código",
+                            fontWeight = FontWeight.SemiBold)
+                    }
+                }
             }
         }
-
-        Spacer(Modifier.height(20.dp))
 
         // ── Unirse a una nueva familia ────────────────────────────────────────
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Unirse a otra familia", style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = joinCodeInput,
-                    onValueChange = { joinCodeInput = it.uppercase().take(6) },
-                    placeholder = { Text("Código de 6 caracteres") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                Button(
-                    onClick = { viewModel.joinFamily(joinCodeInput); joinCodeInput = "" },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    enabled = joinCodeInput.length == 6
-                ) { Text("Unirme") }
+        item {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("➕ Unirse a otra familia",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Pide a un familiar su código de 6 caracteres",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = joinCodeInput,
+                        onValueChange = { joinCodeInput = it.uppercase().take(6) },
+                        placeholder = { Text("Ej: AB23XZ") },
+                        label = { Text("Código de familia") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = { viewModel.joinFamily(joinCodeInput); joinCodeInput = "" },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        enabled = joinCodeInput.length == 6
+                    ) { Text("Unirme", fontWeight = FontWeight.SemiBold) }
+                }
             }
         }
 
-        Spacer(Modifier.height(20.dp))
-
-        // ── Lista de familias ─────────────────────────────────────────────────
-        Text(
-            "Familias (${familyGroups.size})",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.height(10.dp))
+        // ── Separador sección familias ────────────────────────────────────────
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Familias (${familyGroups.size})",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f))
+                if (familyGroups.isNotEmpty()) {
+                    Text("${familyGroups.sumOf { it.members.size }} miembros en total",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            HorizontalDivider(modifier = Modifier.padding(top = 6.dp))
+        }
 
         if (familyGroups.isEmpty()) {
-            Text("Aún no perteneces a ninguna familia.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            item {
+                Box(Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                    contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("👨‍👩‍👧‍👦", fontSize = 40.sp)
+                        Text("Aún no estás en ninguna familia",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center)
+                    }
+                }
+            }
         } else {
-            familyGroups.forEach { group ->
+            // ── Tarjetas de familia ───────────────────────────────────────────
+            items(familyGroups, key = { it.code }) { group ->
+                val isOwn = myFamilyCode.isNotBlank() && group.code == myFamilyCode
                 FamilyGroupCard(
                     group      = group,
-                    isOwn      = group.code == myFamilyCode,
+                    isOwn      = isOwn,
                     currentUid = currentUid,
                     onRename   = { newName -> viewModel.saveFamilyName(newName, group.code) },
                     onLeave    = { showLeaveDialog = group.code }
                 )
-                Spacer(Modifier.height(14.dp))
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        item { Spacer(Modifier.height(8.dp)) }
     }
 
-    // ── Diálogo confirmar salida ──────────────────────────────────────────────
+    // ── Diálogo salida ────────────────────────────────────────────────────────
     showLeaveDialog?.let { code ->
         val group = familyGroups.firstOrNull { it.code == code }
         AlertDialog(
@@ -157,7 +211,8 @@ fun FamilyScreen(
             confirmButton = {
                 Button(
                     onClick = { viewModel.leaveFamily(code); showLeaveDialog = null },
-                    colors  = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    colors  = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error)
                 ) { Text("Salir") }
             },
             dismissButton = {
@@ -177,57 +232,81 @@ private fun FamilyGroupCard(
     onRename: (String) -> Unit,
     onLeave: () -> Unit
 ) {
-    var nameInput  by remember(group.name) { mutableStateOf(group.name) }
-    var editMode   by remember { mutableStateOf(false) }
-    var expanded   by remember { mutableStateOf(true) }
+    var nameInput by remember(group.name) { mutableStateOf(group.name) }
+    var editMode  by remember { mutableStateOf(false) }
+    var expanded  by remember { mutableStateOf(true) }
 
-    Card(modifier = Modifier.fillMaxWidth(),
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (isOwn) Modifier.border(
+                    width = 2.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                    shape = MaterialTheme.shapes.medium
+                ) else Modifier
+            ),
         colors = CardDefaults.cardColors(
             containerColor = if (isOwn)
                 MaterialTheme.colorScheme.secondaryContainer
-            else MaterialTheme.colorScheme.surface
+            else
+                MaterialTheme.colorScheme.surface
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
 
-            // Nombre + badge + expandir
+            // ── Fila: nombre + badge + botones ────────────────────────────
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         Text(
                             group.name.ifBlank { group.code },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
+                        // Badge "Mi familia" — solo si isOwn
                         if (isOwn) {
-                            Spacer(Modifier.width(6.dp))
-                            Surface(shape = MaterialTheme.shapes.small,
-                                color = MaterialTheme.colorScheme.primary) {
-                                Text("Mi familia", style = MaterialTheme.typography.labelSmall,
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = MaterialTheme.colorScheme.primary
+                            ) {
+                                Text(
+                                    "⭐ Mi familia",
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
                             }
                         }
                     }
+                    Spacer(Modifier.height(2.dp))
                     Text("Código: ${group.code}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("${group.members.size} miembro${if (group.members.size != 1) "s" else ""}",
+                    Text(
+                        "${group.members.size} miembro${if (group.members.size != 1) "s" else ""}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
+                // Botón renombrar
                 IconButton(onClick = { editMode = !editMode }) {
-                    Text("✏️", fontSize = 16.sp)
+                    Text(if (editMode) "✕" else "✏️", fontSize = 16.sp)
                 }
+                // Botón expandir miembros
                 IconButton(onClick = { expanded = !expanded }) {
-                    Text(if (expanded) "▲" else "▼", fontSize = 14.sp)
+                    Text(if (expanded) "▲" else "▼", fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
-            // Renombrar
+            // ── Formulario renombrar ──────────────────────────────────────
             if (editMode) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
                     value = nameInput,
                     onValueChange = { nameInput = it },
@@ -235,33 +314,44 @@ private fun FamilyGroupCard(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onRename(nameInput); editMode = false },
-                        modifier = Modifier.weight(1f)) { Text("Guardar") }
-                    OutlinedButton(onClick = { editMode = false },
-                        modifier = Modifier.weight(1f)) { Text("Cancelar") }
-                }
-            }
-
-            // Miembros expandibles
-            if (expanded && group.members.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                HorizontalDivider()
                 Spacer(Modifier.height(8.dp))
-                group.members.forEach { member ->
-                    MemberRow(member = member, isMe = member.id == currentUid)
-                    Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { onRename(nameInput); editMode = false },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Guardar") }
+                    OutlinedButton(
+                        onClick = { editMode = false },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Cancelar") }
                 }
             }
 
-            // Salir (solo si no es la propia familia)
+            // ── Lista de miembros expandible ──────────────────────────────
+            if (expanded) {
+                if (group.members.isEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text("Sin miembros aún",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Spacer(Modifier.height(10.dp))
+                    HorizontalDivider()
+                    Spacer(Modifier.height(10.dp))
+                    group.members.forEach { member ->
+                        MemberRow(member = member, isMe = member.id == currentUid)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+            }
+
+            // ── Botón salir (solo familias ajenas) ────────────────────────
             if (!isOwn) {
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
                 OutlinedButton(
-                    onClick = onLeave,
+                    onClick  = onLeave,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
+                    colors   = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error)
                 ) { Text("Salir de esta familia") }
             }
@@ -269,28 +359,61 @@ private fun FamilyGroupCard(
     }
 }
 
+// ── Fila de miembro ───────────────────────────────────────────────────────────
+
 @Composable
 private fun MemberRow(member: User, isMe: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
-            modifier = Modifier.size(40.dp).clip(CircleShape)
-                .background(if (isMe) MaterialTheme.colorScheme.primary
-                             else MaterialTheme.colorScheme.secondary),
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isMe) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.secondary
+                ),
             contentAlignment = Alignment.Center
         ) {
             Text(member.name.trim().firstOrNull()?.uppercase() ?: "?",
                 color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(member.name.ifBlank { "Sin nombre" },
+            Row(verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    member.name.ifBlank { "Sin nombre" },
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold)
+                    fontWeight = FontWeight.SemiBold
+                )
                 if (isMe) {
-                    Spacer(Modifier.width(6.dp))
-                    Text("(tú)", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Text("tú",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                    }
+                }
+                if (member.role.isNotBlank() && member.role != "familiar") {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.tertiaryContainer
+                    ) {
+                        Text(
+                            when (member.role) {
+                                "paciente" -> "🏥"
+                                "cuidador" -> "🤝"
+                                "admin"    -> "⭐"
+                                else       -> member.role
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                 }
             }
             if (member.phone.isNotBlank())
