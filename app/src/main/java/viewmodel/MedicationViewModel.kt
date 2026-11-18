@@ -6,8 +6,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.util.Log
-import androidx.lifecycle.AndroidViewModel
+import android.util.Logimport androidx.lifecycle.AndroidViewModel
 import com.cerca.app.model.Medication
 import com.cerca.app.ui.notifications.MedicationReceiver
 import com.google.firebase.auth.FirebaseAuth
@@ -165,10 +164,25 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         val pi  = buildPendingIntent(ctx, med, notifIdFor(med.id, calDay), calDay)
         val at  = nextOccurrence(calDay, med.hour, med.minute)
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
-            else
-                am.setExact(AlarmManager.RTC_WAKEUP, at, pi)
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                    // setAlarmClock: Android garantiza la entrega aunque haya
+                    // optimización de batería activa (Samsung, Xiaomi, etc.)
+                    val showIntent = PendingIntent.getActivity(
+                        ctx,
+                        notifIdFor(med.id, calDay) + 10000,
+                        Intent(ctx, Class.forName("com.cerca.app.MainActivity")).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        },
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+                    am.setAlarmClock(AlarmManager.AlarmClockInfo(at, showIntent), pi)
+                }
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ->
+                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+                else ->
+                    am.setExact(AlarmManager.RTC_WAKEUP, at, pi)
+            }
         } catch (e: Exception) { Log.w("MedVM", e.message ?: "") }
     }
 
