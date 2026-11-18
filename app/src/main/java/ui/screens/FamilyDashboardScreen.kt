@@ -27,15 +27,15 @@ fun FamilyDashboardScreen(
     viewModel: AuthViewModel,
     medicationViewModel: MedicationViewModel = viewModel()
 ) {
-    val members    by viewModel.familyMembers.collectAsState()
-    val familyName by viewModel.familyName.collectAsState()
-    val familyCode by viewModel.familyCode.collectAsState()
-    val familyMeds by medicationViewModel.familyMedications.collectAsState()
-    val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+    val familyGroups by viewModel.familyGroups.collectAsState()
+    val familyName   by viewModel.familyName.collectAsState()
+    val myFamilyCode by viewModel.myFamilyCode.collectAsState()
+    val familyMeds   by medicationViewModel.familyMedications.collectAsState()
+    val allMembers   by viewModel.familyMembers.collectAsState()
+    val currentUid   = FirebaseAuth.getInstance().currentUser?.uid ?: ""
 
-    // Cargar medicamentos públicos de familiares cuando cambian los miembros
-    LaunchedEffect(members) {
-        if (members.isNotEmpty()) medicationViewModel.loadFamilyMedications(members)
+    LaunchedEffect(allMembers) {
+        if (allMembers.isNotEmpty()) medicationViewModel.loadFamilyMedications(allMembers)
     }
 
     var selectedTab by remember { mutableStateOf(0) }
@@ -51,26 +51,26 @@ fun FamilyDashboardScreen(
             Column(horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()) {
                 Text("🏠", fontSize = 36.sp)
-                Text(familyName.ifBlank { "Mi Familia" },
+                Text(
+                    if (familyGroups.size == 1) familyName.ifBlank { "Mi Familia" }
+                    else "${familyGroups.size} familias",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onPrimaryContainer)
-                if (familyCode.isNotBlank()) {
-                    Text("Código: $familyCode",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f))
-                }
+                Text("${allMembers.size} miembro${if (allMembers.size != 1) "s" else ""} en total",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f))
             }
         }
 
-        if (members.isEmpty()) {
+        if (familyGroups.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("👨‍👩‍👧‍👦", fontSize = 56.sp)
-                    Text("Tu familia está vacía", style = MaterialTheme.typography.titleLarge,
+                    Text("Sin familias vinculadas", style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                    Text("Ve a Perfil → Mi familia y comparte el código.",
+                    Text("Ve a Perfil → Mis familias para unirte.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center)
@@ -79,7 +79,6 @@ fun FamilyDashboardScreen(
             return
         }
 
-        // ── Tabs ──────────────────────────────────────────────────────────────
         TabRow(selectedTabIndex = selectedTab) {
             Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 },
                 text = { Text("👥 Miembros") })
@@ -88,7 +87,7 @@ fun FamilyDashboardScreen(
         }
 
         when (selectedTab) {
-            0 -> MembersTab(members, currentUid)
+            0 -> MembersTab(familyGroups, currentUid)
             1 -> FamilyMedsTab(familyMeds)
         }
     }
@@ -97,20 +96,35 @@ fun FamilyDashboardScreen(
 // ── Tab miembros ──────────────────────────────────────────────────────────────
 
 @Composable
-private fun MembersTab(members: List<User>, currentUid: String) {
-    LazyColumn(
+private fun MembersTab(familyGroups: List<com.cerca.app.model.FamilyGroup>, currentUid: String) {
+    androidx.compose.foundation.lazy.LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SummaryChip("👥", "${members.size} miembro${if (members.size != 1) "s" else ""}",
-                    Modifier.weight(1f))
-                SummaryChip("✅", "Familia activa", Modifier.weight(1f))
+        familyGroups.forEach { group ->
+            item {
+                // Etiqueta del grupo
+                Text(
+                    group.name.ifBlank { group.code },
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(vertical = 2.dp)
+                )
             }
-        }
-        items(members, key = { it.id }) { member ->
-            MemberCard(member = member, isMe = member.id == currentUid)
+            val others = group.members.filter { it.id != currentUid }
+            if (others.isEmpty()) {
+                item {
+                    Text("Solo tú en esta familia",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
+                }
+            } else {
+                androidx.compose.foundation.lazy.items(others, key = { "${group.code}-${it.id}" }) { member ->
+                    MemberCard(member = member, isMe = false)
+                }
+            }
         }
         item { Spacer(Modifier.height(8.dp)) }
     }

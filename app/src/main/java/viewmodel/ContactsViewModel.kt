@@ -62,30 +62,39 @@ class ContactsViewModel(application: Application) : AndroidViewModel(application
                     _loading.value = false
                     return@addSnapshotListener
                 }
-                val code = doc?.getString("familyCode") ?: ""
+                // Leer familyCodes (array multi-familia) o fallback a familyCode (string legacy)
+                @Suppress("UNCHECKED_CAST")
+                val codes = (doc?.get("familyCodes") as? List<String>)
+                    ?.filter { it.isNotBlank() }
+                    ?.distinct()
+                    ?: doc?.getString("familyCode")?.let { if (it.isNotBlank()) listOf(it) else emptyList() }
+                    ?: emptyList()
+
                 hidden = (doc?.get("hiddenMembers") as? List<*>)
                     ?.filterIsInstance<String>()?.toSet() ?: emptySet()
 
-                if (code.isBlank()) {
-                    familyListener?.remove()
-                    familyListener = null
-                    listenedCode = null
-                    rawMembers = emptyList()
-                    publishFamily(uid)
-                    _loading.value = false
-                } else if (code != listenedCode) {
-                    listenedCode = code
-                    listenToMembers(uid, code)
+                if (codes.isEmpty()) {
+                    familyListener?.remove(); familyListener = null
+                    listenedCode = null; rawMembers = emptyList()
+                    publishFamily(uid); _loading.value = false
                 } else {
-                    publishFamily(uid)
+                    val codeKey = codes.sorted().joinToString(",")
+                    if (codeKey != listenedCode) {
+                        listenedCode = codeKey
+                        listenToMembersMulti(uid, codes)
+                    } else {
+                        publishFamily(uid)
+                    }
                 }
             }
     }
 
-    private fun listenToMembers(uid: String, code: String) {
+    private fun listenToMembersMulti(uid: String, codes: List<String>) {
         familyListener?.remove()
+        // Firestore no permite whereIn con más de 10 valores, pero en la práctica
+        // nadie tendrá más de 10 familias. Usamos whereArrayContainsAny sobre familyCodes.
         familyListener = firestore.collection("users")
-            .whereEqualTo("familyCode", code)
+            .whereArrayContainsAny("familyCodes", codes.take(10))
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.w("ContactsViewModel", "Error al cargar familiares: ${error.message}")
@@ -94,12 +103,10 @@ class ContactsViewModel(application: Application) : AndroidViewModel(application
                 }
                 rawMembers = snapshot?.documents.orEmpty().mapNotNull { d ->
                     d.toObject(User::class.java)?.let { u ->
-                        u.copy(
-                            id = d.id,
-                            name = u.name.ifBlank { u.email.substringBefore("@") }
-                        )
+                        u.copy(id = d.id,
+                            name = u.name.ifBlank { u.email.substringBefore("@") })
                     }
-                }
+                }.distinctBy { it.id }
                 publishFamily(uid)
                 _loading.value = false
             }

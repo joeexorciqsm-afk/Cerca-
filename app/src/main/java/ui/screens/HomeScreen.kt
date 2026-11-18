@@ -94,8 +94,8 @@ private fun ProfileMenu(
 
         MenuCard(
             emoji    = "👨‍👩‍👧‍👦",
-            title    = "Mi familia",
-            subtitle = if (familyName.isNotBlank()) familyName else "Código, miembros y vinculación",
+            title    = "Mis familias",
+            subtitle = if (familyName.isNotBlank()) familyName else "Gestionar familias y miembros",
             onClick  = onOpenFamily
         )
 
