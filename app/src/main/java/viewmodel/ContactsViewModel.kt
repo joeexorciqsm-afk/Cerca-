@@ -91,8 +91,7 @@ class ContactsViewModel(application: Application) : AndroidViewModel(application
 
     private fun listenToMembersMulti(uid: String, codes: List<String>) {
         familyListener?.remove()
-        // Firestore no permite whereIn con más de 10 valores, pero en la práctica
-        // nadie tendrá más de 10 familias. Usamos whereArrayContainsAny sobre familyCodes.
+        // Primera query: usuarios con el nuevo campo familyCodes (array)
         familyListener = firestore.collection("users")
             .whereArrayContainsAny("familyCodes", codes.take(10))
             .addSnapshotListener { snapshot, error ->
@@ -101,14 +100,31 @@ class ContactsViewModel(application: Application) : AndroidViewModel(application
                     _loading.value = false
                     return@addSnapshotListener
                 }
-                rawMembers = snapshot?.documents.orEmpty().mapNotNull { d ->
+                val fromArray = snapshot?.documents.orEmpty().mapNotNull { d ->
                     d.toObject(User::class.java)?.let { u ->
-                        u.copy(id = d.id,
-                            name = u.name.ifBlank { u.email.substringBefore("@") })
+                        u.copy(id = d.id, name = u.name.ifBlank { u.email.substringBefore("@") })
                     }
-                }.distinctBy { it.id }
-                publishFamily(uid)
-                _loading.value = false
+                }
+
+                // Segunda query: usuarios legacy (familyCode string), solo primer código
+                firestore.collection("users")
+                    .whereIn("familyCode", codes.take(10))
+                    .get()
+                    .addOnSuccessListener { legacySnap ->
+                        val fromLegacy = legacySnap.documents.mapNotNull { d ->
+                            d.toObject(User::class.java)?.let { u ->
+                                u.copy(id = d.id, name = u.name.ifBlank { u.email.substringBefore("@") })
+                            }
+                        }
+                        rawMembers = (fromArray + fromLegacy).distinctBy { it.id }
+                        publishFamily(uid)
+                        _loading.value = false
+                    }
+                    .addOnFailureListener {
+                        rawMembers = fromArray.distinctBy { it.id }
+                        publishFamily(uid)
+                        _loading.value = false
+                    }
             }
     }
 

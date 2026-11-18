@@ -311,19 +311,52 @@ class AuthViewModel : ViewModel() {
             .whereArrayContains("familyCodes", code)
             .addSnapshotListener { snap, e ->
                 if (e != null) { Log.w("AuthVM", e.message ?: ""); return@addSnapshotListener }
-                val members = snap?.documents
+
+                // Query nueva (familyCodes array)
+                val fromArray = snap?.documents
                     ?.mapNotNull { it.toObject(User::class.java)?.copy(id = it.id) }
-                    ?.sortedBy { it.name.lowercase() }
                     ?: emptyList()
 
-                // Actualizar o insertar el grupo
-                val existing = _familyGroups.value.toMutableList()
-                val idx = existing.indexOfFirst { it.code == code }
-                val name = existing.getOrNull(idx)?.name ?: ""
-                val group = FamilyGroup(code = code, name = name, members = members)
-                if (idx >= 0) existing[idx] = group else existing.add(group)
-                _familyGroups.value = existing
-                rebuildAllMembers()
+                // Query legacy (familyCode string) — necesaria para usuarios sin migrar
+                firestore.collection("users")
+                    .whereEqualTo("familyCode", code)
+                    .get()
+                    .addOnSuccessListener { legacySnap ->
+                        val fromLegacy = legacySnap.documents
+                            .mapNotNull { it.toObject(User::class.java)?.copy(id = it.id) }
+
+                        val members = (fromArray + fromLegacy)
+                            .distinctBy { it.id }
+                            .sortedBy { it.name.lowercase() }
+
+                        val existing = _familyGroups.value.toMutableList()
+                        val idx = existing.indexOfFirst { it.code == code }
+                        val name = existing.getOrNull(idx)?.name ?: ""
+                        val group = FamilyGroup(code = code, name = name, members = members)
+                        if (idx >= 0) existing[idx] = group else existing.add(group)
+                        _familyGroups.value = existing
+                        rebuildAllMembers()
+
+                        // Migrar el usuario actual al nuevo formato si aún no tiene familyCodes
+                        val myUid = firebaseAuth.currentUser?.uid ?: return@addOnSuccessListener
+                        fromLegacy.forEach { user ->
+                            if (user.id == myUid) {
+                                firestore.collection("users").document(myUid)
+                                    .set(mapOf("familyCodes" to listOf(code)), SetOptions.merge())
+                            }
+                        }
+                    }
+                    .addOnFailureListener {
+                        // Si falla la query legacy, usar solo los resultados del array
+                        val members = fromArray.sortedBy { it.name.lowercase() }
+                        val existing = _familyGroups.value.toMutableList()
+                        val idx = existing.indexOfFirst { it.code == code }
+                        val name = existing.getOrNull(idx)?.name ?: ""
+                        val group = FamilyGroup(code = code, name = name, members = members)
+                        if (idx >= 0) existing[idx] = group else existing.add(group)
+                        _familyGroups.value = existing
+                        rebuildAllMembers()
+                    }
             }
 
         familyListeners[code] = listener
