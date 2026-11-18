@@ -445,7 +445,7 @@ fun VoiceScreen(
             else "Aún no tienes código de familia"
         if (t.contains("sal de la familia") || t.contains("salir de la familia") ||
             t.contains("salirme de la familia")) {
-            authViewModel.leaveFamily(); return "Saliste de la familia"
+            authViewModel.leaveFamily(familyCode); return "Saliste de la familia"
         }
         if (t.contains("cambia el nombre de la familia a ") || t.contains("la familia se llama ")) {
             val nuevo = (if (t.contains("cambia el nombre de la familia a "))
