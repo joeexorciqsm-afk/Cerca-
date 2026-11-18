@@ -6,11 +6,15 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.util.Logimport androidx.lifecycle.AndroidViewModel
+import android.util.Log
+import androidx.lifecycle.AndroidViewModel
 import com.cerca.app.model.Medication
+import com.cerca.app.model.User
+import com.cerca.app.ui.notifications.MedicationNotificationHelper
 import com.cerca.app.ui.notifications.MedicationReceiver
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,7 +28,6 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     private val _medications = MutableStateFlow<List<Medication>>(emptyList())
     val medications: StateFlow<List<Medication>> = _medications
 
-    // Medicamentos públicos de los miembros de la familia
     private val _familyMedications = MutableStateFlow<List<Medication>>(emptyList())
     val familyMedications: StateFlow<List<Medication>> = _familyMedications
 
@@ -33,6 +36,9 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
+
+    // Listener en tiempo real de medicamentos públicos de la familia
+    private val familyListeners = mutableListOf<ListenerRegistration>()
 
     private fun uid() = auth.currentUser?.uid
 
@@ -51,11 +57,18 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
             .addOnFailureListener { _loading.value = false; Log.w("MedVM", it.message ?: "") }
     }
 
-    fun addMedication(med: Medication) {
+    /**
+     * Agrega un medicamento. Por defecto isPublic = true para que la familia
+     * lo vea y reciba recordatorios de quién lo toma.
+     * Guarda ownerName para mostrar el nombre en la notificación familiar.
+     */
+    fun addMedication(med: Medication, ownerName: String = "") {
         val uid = uid() ?: return
         _loading.value = true
         val ref = firestore.collection("users").document(uid).collection("medications").document()
-        val withId = med.copy(id = ref.id, ownerId = uid)
+        // isPublic = true por defecto, ownerName viene del perfil
+        val withId = med.copy(id = ref.id, ownerId = uid, ownerName = ownerName,
+            isPublic = med.isPublic) // respeta lo que venga del formulario
         ref.set(withId)
             .addOnSuccessListener {
                 _message.value = "✅ Recordatorio añadido"
@@ -65,7 +78,8 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
             .addOnFailureListener { _message.value = "Error: ${it.message}"; _loading.value = false }
     }
 
-    fun addMedicationAndSchedule(med: Medication) = addMedication(med)
+    fun addMedicationAndSchedule(med: Medication, ownerName: String = "") =
+        addMedication(med, ownerName)
 
     fun toggleActive(med: Medication) {
         val uid = uid() ?: return
@@ -84,7 +98,10 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         firestore.collection("users").document(uid).collection("medications").document(med.id)
             .set(mapOf("isPublic" to updated.isPublic), SetOptions.merge())
             .addOnSuccessListener {
-                _message.value = if (updated.isPublic) "👨‍👩‍👧 Visible para tu familia" else "🔒 Solo visible para ti"
+                _message.value = if (updated.isPublic)
+                    "👨‍👩‍👧 Tu familia verá este recordatorio"
+                else
+                    "🔒 Solo visible para ti"
                 loadMedications()
             }
     }
@@ -108,47 +125,60 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         return found.name
     }
 
-    // ── Medicamentos públicos de la familia ───────────────────────────────────
+    // ── Medicamentos públicos de la familia (listener en tiempo real) ──────────
 
     /**
-     * Carga los medicamentos marcados como públicos de todos los miembros
-     * de la familia (excepto el propio usuario).
+     * Escucha en tiempo real los medicamentos públicos de cada familiar.
+     * Cuando el alarm del familiar dispara y actualiza Firestore, esta app
+     * recibe la notificación automáticamente.
      */
-    fun loadFamilyMedications(familyMembers: List<com.cerca.app.model.User>) {
+    fun listenFamilyMedications(familyMembers: List<User>) {
         val myUid = uid() ?: return
+        // Limpiar listeners anteriores
+        familyListeners.forEach { it.remove() }
+        familyListeners.clear()
+
         val others = familyMembers.filter { it.id != myUid }
         if (others.isEmpty()) { _familyMedications.value = emptyList(); return }
 
-        val results = mutableListOf<Medication>()
-        var pending = others.size
+        // Mapa mutable para ir acumulando resultados de cada familiar
+        val resultsMap = mutableMapOf<String, List<Medication>>()
 
         others.forEach { member ->
-            firestore.collection("users").document(member.id)
+            val listener = firestore.collection("users").document(member.id)
                 .collection("medications")
                 .whereEqualTo("isPublic", true)
-                .get()
-                .addOnSuccessListener { snap ->
-                    val meds = snap.documents.mapNotNull { doc ->
+                .addSnapshotListener { snap, e ->
+                    if (e != null) return@addSnapshotListener
+                    val meds = snap?.documents?.mapNotNull { doc ->
                         doc.toObject(Medication::class.java)?.copy(
                             id        = doc.id,
                             ownerId   = member.id,
-                            ownerName = member.name
+                            ownerName = member.name.ifBlank { member.email.substringBefore("@") }
                         )
-                    }
-                    synchronized(results) { results.addAll(meds) }
-                    pending--
-                    if (pending == 0) {
-                        _familyMedications.value = results.sortedBy { it.ownerName }
+                    } ?: emptyList()
+
+                    synchronized(resultsMap) {
+                        resultsMap[member.id] = meds
+                        _familyMedications.value = resultsMap.values
+                            .flatten()
+                            .sortedWith(compareBy({ it.ownerName }, { "%02d:%02d".format(it.hour, it.minute) }))
                     }
                 }
-                .addOnFailureListener {
-                    pending--
-                    if (pending == 0) _familyMedications.value = results.sortedBy { it.ownerName }
-                }
+            familyListeners.add(listener)
         }
     }
 
+    // Alias para compatibilidad con código existente
+    fun loadFamilyMedications(familyMembers: List<User>) = listenFamilyMedications(familyMembers)
+
     fun clearMessage() { _message.value = null }
+
+    override fun onCleared() {
+        super.onCleared()
+        familyListeners.forEach { it.remove() }
+        familyListeners.clear()
+    }
 
     // ── AlarmManager ──────────────────────────────────────────────────────────
 
@@ -166,8 +196,6 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         try {
             when {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-                    // setAlarmClock: Android garantiza la entrega aunque haya
-                    // optimización de batería activa (Samsung, Xiaomi, etc.)
                     val showIntent = PendingIntent.getActivity(
                         ctx,
                         notifIdFor(med.id, calDay) + 10000,
@@ -209,13 +237,16 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     private fun buildPendingIntent(ctx: Context, med: Medication, notifId: Int, calDay: Int): PendingIntent {
         val intent = Intent(ctx, MedicationReceiver::class.java).apply {
             action = "ALARM_$notifId"
-            putExtra(MedicationReceiver.EXTRA_MED_NAME,  med.name)
-            putExtra(MedicationReceiver.EXTRA_MED_DOSE,  med.dose)
-            putExtra(MedicationReceiver.EXTRA_NOTIF_ID,  notifId)
-            putExtra(MedicationReceiver.EXTRA_MED_ID,    med.id)
-            putExtra(MedicationReceiver.EXTRA_CAL_DAY,   calDay)
-            putExtra(MedicationReceiver.EXTRA_HOUR,      med.hour)
-            putExtra(MedicationReceiver.EXTRA_MINUTE,    med.minute)
+            putExtra(MedicationReceiver.EXTRA_MED_NAME,   med.name)
+            putExtra(MedicationReceiver.EXTRA_MED_DOSE,   med.dose)
+            putExtra(MedicationReceiver.EXTRA_NOTIF_ID,   notifId)
+            putExtra(MedicationReceiver.EXTRA_MED_ID,     med.id)
+            putExtra(MedicationReceiver.EXTRA_CAL_DAY,    calDay)
+            putExtra(MedicationReceiver.EXTRA_HOUR,       med.hour)
+            putExtra(MedicationReceiver.EXTRA_MINUTE,     med.minute)
+            putExtra(MedicationReceiver.EXTRA_OWNER_NAME, med.ownerName)
+            putExtra(MedicationReceiver.EXTRA_IS_PUBLIC,  med.isPublic)
+            putExtra(MedicationReceiver.EXTRA_FAMILY_CODE, med.familyCode)
             putStringArrayListExtra(MedicationReceiver.EXTRA_DAYS, ArrayList(med.days.map { it.toString() }))
         }
         return PendingIntent.getBroadcast(ctx, notifId, intent,

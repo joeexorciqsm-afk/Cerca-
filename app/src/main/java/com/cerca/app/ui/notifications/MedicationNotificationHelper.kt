@@ -33,9 +33,7 @@ object MedicationNotificationHelper {
             context, notifId, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
         val body = if (dose.isNotBlank()) "Dosis: $dose" else "Es momento de tomarlo"
-
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("💊 $medName")
@@ -45,11 +43,42 @@ object MedicationNotificationHelper {
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .build()
+        try { NotificationManagerCompat.from(context).notify(notifId, notification) }
+        catch (_: SecurityException) {}
+    }
 
-        try {
-            NotificationManagerCompat.from(context).notify(notifId, notification)
-        } catch (_: SecurityException) {
-            // El usuario no otorgó permiso de notificaciones — se ignora silenciosamente
+    /**
+     * Notificación para familiares: "💊 Román está tomando Omeprazol"
+     * Aparece cuando un familiar tiene un medicamento público programado.
+     */
+    fun showFamilyReminder(
+        context: Context,
+        ownerName: String,
+        medName: String,
+        dose: String,
+        notifId: Int
+    ) {
+        createChannel(context)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
+        val pendingIntent = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val title = "💊 $ownerName — $medName"
+        val body  = if (dose.isNotBlank()) "Recordatorio de dosis: $dose" else "Es hora de tomar su medicamento"
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+        try { NotificationManagerCompat.from(context).notify(notifId, notification) }
+        catch (_: SecurityException) {}
     }
 }

@@ -74,7 +74,16 @@ fun MedicationsScreen(
         // ── Formulario ────────────────────────────────────────────────────
         if (showForm && selectedTab == 0) {
             AddMedicationForm(
-                onAdd    = { med -> viewModel.addMedication(med); showForm = false },
+                ownerName = authViewModel.userName.collectAsState().value,
+                onAdd    = { med ->
+                    val familyCode = authViewModel.familyCode.value
+                    val ownerName  = authViewModel.userName.value
+                    viewModel.addMedication(
+                        med.copy(familyCode = familyCode, ownerName = ownerName),
+                        ownerName
+                    )
+                    showForm = false
+                },
                 onCancel = { showForm = false }
             )
             HorizontalDivider()
@@ -284,12 +293,17 @@ private fun MedicationCard(
 // ── Formulario ────────────────────────────────────────────────────────────────
 
 @Composable
-private fun AddMedicationForm(onAdd: (Medication) -> Unit, onCancel: () -> Unit) {
+private fun AddMedicationForm(
+    onAdd: (Medication) -> Unit,
+    onCancel: () -> Unit,
+    ownerName: String = ""
+) {
     var name     by remember { mutableStateOf("") }
     var dose     by remember { mutableStateOf("") }
     var hourStr  by remember { mutableStateOf("8") }
     var minStr   by remember { mutableStateOf("00") }
     var selDays  by remember { mutableStateOf(setOf(0,1,2,3,4,5,6)) }
+    var isPublic by remember { mutableStateOf(true) }   // público por defecto
     var nameErr  by remember { mutableStateOf(false) }
     var timeErr  by remember { mutableStateOf(false) }
 
@@ -348,6 +362,29 @@ private fun AddMedicationForm(onAdd: (Medication) -> Unit, onCancel: () -> Unit)
             }
         }
 
+        // Compartir con familia — toggle visible
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    if (isPublic) "👨‍👩‍👧 Visible para tu familia" else "🔒 Solo visible para ti",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isPublic) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    if (isPublic) "Tu familia recibirá este recordatorio también"
+                    else "Solo tú recibirás la notificación",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(checked = isPublic, onCheckedChange = { isPublic = it })
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("Cancelar") }
             Button(
@@ -359,8 +396,12 @@ private fun AddMedicationForm(onAdd: (Medication) -> Unit, onCancel: () -> Unit)
                     if (nameErr || timeErr) return@Button
                     val days = if (selDays.isEmpty()) DAY_CALENDAR
                                else selDays.map { DAY_CALENDAR[it] }
-                    onAdd(Medication(name = name.trim(), dose = dose.trim(),
-                        hour = h!!, minute = m!!, days = days, active = true))
+                    onAdd(Medication(
+                        name = name.trim(), dose = dose.trim(),
+                        hour = h!!, minute = m!!, days = days,
+                        active = true, isPublic = isPublic,
+                        ownerName = ownerName
+                    ))
                 },
                 modifier = Modifier.weight(1f)
             ) { Text("Guardar") }
