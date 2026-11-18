@@ -68,7 +68,7 @@ fun MainScreen(
     ) { innerPadding ->
         Surface(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             when (selectedTab) {
-                0 -> ContactsScreen(viewModel = contactsViewModel)
+                0 -> ContactsScreen(viewModel = contactsViewModel, authViewModel = authViewModel)
                 1 -> VoiceScreen(
                         contactsViewModel   = contactsViewModel,
                         authViewModel       = authViewModel,

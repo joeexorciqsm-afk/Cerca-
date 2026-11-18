@@ -26,15 +26,20 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cerca.app.model.PhoneContact
+import com.cerca.app.viewmodel.AuthViewModel
 import com.cerca.app.viewmodel.ContactsViewModel
 
 @Composable
-fun ContactsScreen(viewModel: ContactsViewModel = viewModel()) {
+fun ContactsScreen(
+    viewModel: ContactsViewModel = viewModel(),
+    authViewModel: AuthViewModel = viewModel()
+) {
     val familyContacts by viewModel.familyContacts.collectAsState()
     val myContacts     by viewModel.myContacts.collectAsState()
     val phoneContacts  by viewModel.phoneContacts.collectAsState()
     val loading        by viewModel.loading.collectAsState()
     val message        by viewModel.message.collectAsState()
+    val familyGroups   by authViewModel.familyGroups.collectAsState()
     val context        = LocalContext.current
 
     var showAddDialog   by remember { mutableStateOf(false) }
@@ -42,22 +47,21 @@ fun ContactsScreen(viewModel: ContactsViewModel = viewModel()) {
     var contactToEdit   by remember { mutableStateOf<Triple<String, String, String>?>(null) }
     var memberToHide    by remember { mutableStateOf<Pair<String, String>?>(null) }
     var searchQuery     by remember { mutableStateOf("") }
+    var activeTab       by remember { mutableStateOf(0) }
 
-    // Pestaña activa: 0 = App, 1 = Teléfono
-    var activeTab by remember { mutableStateOf(0) }
+    // Familia seleccionada: null = todas
+    var selectedFamilyCode by remember { mutableStateOf<String?>(null) }
 
-    // Permisos
-    var pendingCall  by remember { mutableStateOf("") }
-    var hasCallPerm  by remember {
+    var pendingCall by remember { mutableStateOf("") }
+    var hasCallPerm by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE)
             == PackageManager.PERMISSION_GRANTED)
     }
-    var hasReadPerm  by remember {
+    var hasReadPerm by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS)
             == PackageManager.PERMISSION_GRANTED)
     }
 
-    // Launcher CALL_PHONE
     val callPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -65,13 +69,11 @@ fun ContactsScreen(viewModel: ContactsViewModel = viewModel()) {
         if (pendingCall.isNotBlank()) {
             val action = if (granted) Intent.ACTION_CALL else Intent.ACTION_DIAL
             context.startActivity(Intent(action, Uri.parse("tel:$pendingCall")).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            })
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
             pendingCall = ""
         }
     }
 
-    // Launcher READ_CONTACTS
     val readPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -82,8 +84,7 @@ fun ContactsScreen(viewModel: ContactsViewModel = viewModel()) {
     fun call(phone: String) {
         if (hasCallPerm) {
             context.startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$phone")).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            })
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
         } else {
             pendingCall = phone
             callPermLauncher.launch(Manifest.permission.CALL_PHONE)
@@ -98,7 +99,18 @@ fun ContactsScreen(viewModel: ContactsViewModel = viewModel()) {
         if (message != null) { kotlinx.coroutines.delay(2000); viewModel.clearMessage() }
     }
 
-    // Filtrar agenda por búsqueda
+    // Filtrar contactos de familia según selección
+    val filteredFamilyContacts = remember(familyContacts, familyGroups, selectedFamilyCode) {
+        if (selectedFamilyCode == null) familyContacts
+        else {
+            val codesInGroup = familyGroups
+                .firstOrNull { it.code == selectedFamilyCode }
+                ?.members?.map { it.id }?.toSet()
+                ?: emptySet()
+            familyContacts.filter { it.id in codesInGroup }
+        }
+    }
+
     val filteredPhone = remember(phoneContacts, searchQuery) {
         if (searchQuery.isBlank()) phoneContacts
         else phoneContacts.filter {
@@ -115,14 +127,22 @@ fun ContactsScreen(viewModel: ContactsViewModel = viewModel()) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Contactos",
-                style = MaterialTheme.typography.headlineMedium,
+            Text("Contactos", style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold)
             if (activeTab == 0) {
                 FilledTonalButton(onClick = { showAddDialog = true }) {
                     Text("+ Agregar", fontWeight = FontWeight.SemiBold)
                 }
             }
+        }
+
+        // ── Selector de familia (solo tab App y si hay más de una familia) ─
+        if (activeTab == 0) {
+            FamilySelector(
+                groups       = familyGroups,
+                selectedCode = selectedFamilyCode,
+                onSelect     = { selectedFamilyCode = it }
+            )
         }
 
         // ── Tabs ──────────────────────────────────────────────────────────
@@ -142,50 +162,46 @@ fun ContactsScreen(viewModel: ContactsViewModel = viewModel()) {
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         }
 
-        // ── Contenido por tab ─────────────────────────────────────────────
         when (activeTab) {
             0 -> AppContactsTab(
-                familyContacts = familyContacts,
-                myContacts     = myContacts.map { it.id to (it.name to it.phone) },
-                loading        = loading,
-                onCall         = { call(it) },
-                onEditContact  = { id, n, p -> contactToEdit = Triple(id, n, p) },
+                familyGroups    = familyGroups,
+                selectedCode    = selectedFamilyCode,
+                familyContacts  = filteredFamilyContacts,
+                myContacts      = myContacts.map { it.id to (it.name to it.phone) },
+                loading         = loading,
+                onCall          = { call(it) },
+                onEditContact   = { id, n, p -> contactToEdit = Triple(id, n, p) },
                 onDeleteContact = { id, n -> contactToDelete = id to n },
-                onHideMember   = { id, n -> memberToHide = id to n }
+                onHideMember    = { id, n -> memberToHide = id to n }
             )
             1 -> PhoneContactsTab(
-                contacts      = filteredPhone,
-                hasPermission = hasReadPerm,
-                searchQuery   = searchQuery,
+                contacts       = filteredPhone,
+                hasPermission  = hasReadPerm,
+                searchQuery    = searchQuery,
                 onSearchChange = { searchQuery = it },
-                onCall        = { call(it) },
-                onRequestPerm = { readPermLauncher.launch(Manifest.permission.READ_CONTACTS) },
-                onRefresh     = { viewModel.loadPhoneContacts() }
+                onCall         = { call(it) },
+                onRequestPerm  = { readPermLauncher.launch(Manifest.permission.READ_CONTACTS) },
+                onRefresh      = { viewModel.loadPhoneContacts() }
             )
         }
     }
 
-    // ── Diálogos ──────────────────────────────────────────────────────────
     if (showAddDialog) {
         ContactDialog("Agregar contacto", "Agregar",
             onDismiss = { showAddDialog = false },
-            onConfirm = { n, p -> viewModel.addContact(n, p); showAddDialog = false }
-        )
+            onConfirm = { n, p -> viewModel.addContact(n, p); showAddDialog = false })
     }
     contactToEdit?.let { (id, n, p) ->
         ContactDialog("Editar contacto", "Guardar", n, p,
             onDismiss = { contactToEdit = null },
-            onConfirm = { nn, np -> viewModel.updateContact(id, nn, np); contactToEdit = null }
-        )
+            onConfirm = { nn, np -> viewModel.updateContact(id, nn, np); contactToEdit = null })
     }
     memberToHide?.let { (id, name) ->
         AlertDialog(
             onDismissRequest = { memberToHide = null },
             title = { Text("Quitar de la lista") },
             text  = { Text("¿Quitar a \"${name.ifBlank { "este contacto" }}\"? Su cuenta no se elimina.") },
-            confirmButton = {
-                Button(onClick = { viewModel.hideFamilyMember(id); memberToHide = null }) { Text("Quitar") }
-            },
+            confirmButton = { Button(onClick = { viewModel.hideFamilyMember(id); memberToHide = null }) { Text("Quitar") } },
             dismissButton = { TextButton(onClick = { memberToHide = null }) { Text("Cancelar") } }
         )
     }
@@ -208,6 +224,8 @@ fun ContactsScreen(viewModel: ContactsViewModel = viewModel()) {
 
 @Composable
 private fun AppContactsTab(
+    familyGroups:    List<com.cerca.app.model.FamilyGroup>,
+    selectedCode:    String?,
     familyContacts:  List<com.cerca.app.model.User>,
     myContacts:      List<Pair<String, Pair<String, String>>>,
     loading:         Boolean,
@@ -221,35 +239,62 @@ private fun AppContactsTab(
             CircularProgressIndicator()
         }
         familyContacts.isEmpty() && myContacts.isEmpty() -> EmptyState(
-            emoji = "📋",
-            title = "Sin contactos aún",
+            emoji    = "📋",
+            title    = "Sin contactos aún",
             subtitle = "Pulsa + Agregar o vincula tu familia desde Perfil"
         )
         else -> LazyColumn(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // ── Sección familia ───────────────────────────────────────────
             if (familyContacts.isNotEmpty()) {
-                item { SectionLabel("👨‍👩‍👧‍👦 Familia") }
-                items(familyContacts) { m ->
-                    ContactCard(name = m.name, phone = m.phone, isFamily = true,
-                        onCall = { onCall(m.phone) },
-                        onDelete = { onHideMember(m.id, m.name) })
+                if (familyGroups.size > 1 && selectedCode == null) {
+                    // Multi-familia: separar por grupo
+                    familyGroups.forEach { group ->
+                        val membersInGroup = familyContacts.filter { contact ->
+                            group.members.any { m -> m.id == contact.id }
+                        }
+                        if (membersInGroup.isNotEmpty()) {
+                            item {
+                                SectionLabel("👨‍👩‍👧‍👦 ${group.name.ifBlank { group.code }}")
+                            }
+                            items(membersInGroup, key = { "fam-${group.code}-${it.id}" }) { m ->
+                                ContactCard(name = m.name, phone = m.phone, isFamily = true,
+                                    onCall   = { onCall(m.phone) },
+                                    onDelete = { onHideMember(m.id, m.name) })
+                            }
+                        }
+                    }
+                } else {
+                    // Una sola familia o filtrada: sección simple
+                    val label = if (selectedCode != null)
+                        "👨‍👩‍👧‍👦 ${familyGroups.firstOrNull { it.code == selectedCode }?.name?.ifBlank { selectedCode } ?: selectedCode}"
+                    else "👨‍👩‍👧‍👦 Familia"
+                    item { SectionLabel(label) }
+                    items(familyContacts, key = { "fam-${it.id}" }) { m ->
+                        ContactCard(name = m.name, phone = m.phone, isFamily = true,
+                            onCall   = { onCall(m.phone) },
+                            onDelete = { onHideMember(m.id, m.name) })
+                    }
                 }
             }
+
+            // ── Sección mis contactos ─────────────────────────────────────
             if (myContacts.isNotEmpty()) {
                 item {
                     if (familyContacts.isNotEmpty()) Spacer(Modifier.height(4.dp))
                     SectionLabel("📋 Mis contactos")
                 }
-                items(myContacts) { (id, np) ->
+                items(myContacts, key = { "my-${it.first}" }) { (id, np) ->
                     val (name, phone) = np
                     ContactCard(name = name, phone = phone, isFamily = false,
-                        onCall = { onCall(phone) },
-                        onEdit = { onEditContact(id, name, phone) },
+                        onCall   = { onCall(phone) },
+                        onEdit   = { onEditContact(id, name, phone) },
                         onDelete = { onDeleteContact(id, name) })
                 }
             }
+
             item { Spacer(Modifier.height(8.dp)) }
         }
     }
