@@ -170,6 +170,31 @@ class AuthViewModel : ViewModel() {
     // ── Multi-familia ─────────────────────────────────────────────────────────
 
     /**
+     * Crea una nueva familia con un código único y un nombre dado.
+     * Agrega ese código al array familyCodes del usuario.
+     */
+    fun createFamily(name: String) {
+        val uid = firebaseAuth.currentUser?.uid ?: run { _familyMessage.value = "Sesión no iniciada"; return }
+        val newCode = generateFamilyCode()
+        val cleanName = name.trim().ifBlank { "Mi familia" }
+
+        // Crear documento de familia
+        firestore.collection("families").document(newCode)
+            .set(mapOf("name" to cleanName, "createdBy" to uid))
+            .addOnSuccessListener {
+                // Agregar el código al array del usuario
+                firestore.collection("users").document(uid)
+                    .set(mapOf("familyCodes" to FieldValue.arrayUnion(newCode)), SetOptions.merge())
+                    .addOnSuccessListener {
+                        _familyMessage.value = "✅ Familia \"$cleanName\" creada"
+                        subscribeToFamily(newCode)
+                    }
+                    .addOnFailureListener { _familyMessage.value = it.message }
+            }
+            .addOnFailureListener { _familyMessage.value = it.message }
+    }
+
+    /**
      * Unirse a una familia por código.
      * Agrega el código al array `familyCodes` del usuario (no reemplaza).
      */
