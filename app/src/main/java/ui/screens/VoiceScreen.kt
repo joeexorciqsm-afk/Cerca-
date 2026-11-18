@@ -201,14 +201,23 @@ fun VoiceScreen(
 
         // Llamar al 911 directamente
         if (t.contains("llama al 911") || t.contains("llama a 911") ||
-            t.contains("marca el 911") || t.trim() == "911") {
+            t.contains("marca el 911") || t.trim() == "911" ||
+            t.contains("llama al nueve uno uno") || t.contains("servicios de emergencia") ||
+            t.contains("llama a emergencias") || t.contains("ambulancia") ||
+            t.contains("llama a la ambulancia") || t.contains("llama a la policía") ||
+            t.contains("llama a la policia") || t.contains("llama a los bomberos")) {
             emergencyViewModel.call911()
             return "📞 Llamando al 911"
         }
 
         // Modo conducción / accidente / carretera
         if (t.contains("emergencia en carretera") || t.contains("accidente") ||
-            t.contains("choque") || t.contains("modo conducción") || t.contains("modo conduccion")) {
+            t.contains("choque") || t.contains("choqué") || t.contains("choque de carro") ||
+            t.contains("modo conducción") || t.contains("modo conduccion") ||
+            t.contains("estoy manejando") || t.contains("estoy conduciendo") ||
+            t.contains("volcadura") || t.contains("me chocaron") ||
+            t.contains("atropellé") || t.contains("atropellaron") ||
+            t.contains("accidente de tráfico") || t.contains("accidente de auto")) {
             val user = User(name = userName, phone = userPhone, age = userAge, familyCode = familyCode)
             if (familyCode.isBlank()) return "No tienes familia vinculada."
             if (hasLocationPerm) {
@@ -226,19 +235,27 @@ fun VoiceScreen(
         val triggerSOS = listOf(
             "envía sos", "envia sos", "manda sos", "enviar sos",
             "manda una alerta", "envía una alerta", "envia una alerta",
-            "emergencia", "necesito ayuda", "llama a emergencias",
-            "activa el sos", "activa sos", "sos"
+            "emergencia", "necesito ayuda", "activa el sos", "activa sos", "sos",
+            "socorro", "auxilio", "pide ayuda", "llama a mi familia",
+            "avisa a mi familia", "alerta a mi familia", "manda alerta",
+            "estoy en peligro", "me caí", "me caí y no me puedo levantar",
+            "me siento mal", "me desmayé", "me desmaye", "no me siento bien",
+            "tengo una emergencia", "hay una emergencia", "necesito asistencia",
+            "vine al suelo", "me lastimé", "me lastime", "me golpeé",
+            "me duele el pecho", "creo que me da un infarto", "me falta el aire"
         ).firstOrNull { t.contains(it) }
 
         if (triggerSOS != null) {
-            val msg = listOf("emergencia ", "necesito ayuda ", "envía sos ", "envia sos ",
-                "manda sos ", "manda una alerta ")
-                .firstOrNull { t.contains(it) }
+            val msg = listOf(
+                "emergencia ", "necesito ayuda ", "envía sos ", "envia sos ",
+                "manda sos ", "manda una alerta ", "socorro ", "auxilio ",
+                "me caí ", "me siento mal ", "estoy en peligro "
+            ).firstOrNull { t.contains(it) }
                 ?.let { t.substringAfter(it).trim().trim(',', '.') }
                 ?.ifBlank { null } ?: "¡Necesito ayuda!"
 
             val user = User(name = userName, phone = userPhone, age = userAge, familyCode = familyCode)
-            if (familyCode.isBlank()) return "No tienes familia vinculada. Ve a Perfil, Mi familia."
+            if (familyCode.isBlank()) return "No tienes familia vinculada. Ve a Perfil, Mis familias."
 
             if (hasLocationPerm) {
                 emergencyViewModel.sendSOS(user, msg)
@@ -252,15 +269,20 @@ fun VoiceScreen(
         }
 
         if (t.contains("cancela la alerta") || t.contains("falsa alarma") ||
-            t.contains("ya estoy bien") || t.contains("cancela el sos")) {
+            t.contains("ya estoy bien") || t.contains("cancela el sos") ||
+            t.contains("cancela la emergencia") || t.contains("estoy bien") ||
+            t.contains("fue un error") || t.contains("no es nada") ||
+            t.contains("todo bien") || t.contains("ya pasó") || t.contains("ya paso")) {
             emergencyViewModel.resetState()
             return "✅ Alerta cancelada"
         }
 
         if (t.contains("alertas de mi familia") || t.contains("hay emergencias") ||
-            t.contains("alguna alerta")) {
+            t.contains("alguna alerta") || t.contains("pasó algo") || t.contains("paso algo") ||
+            t.contains("está bien mi familia") || t.contains("esta bien mi familia") ||
+            t.contains("cómo está mi familia") || t.contains("como esta mi familia")) {
             val activas = emergencyViewModel.familyAlerts.value
-            return if (activas.isEmpty()) "No hay alertas activas de tu familia"
+            return if (activas.isEmpty()) "No hay alertas activas de tu familia, todo bien"
             else "⚠️ ${activas.size} alerta${if (activas.size > 1) "s" else ""} de: ${activas.joinToString(", ") { it.userName }}"
         }
 
@@ -270,7 +292,13 @@ fun VoiceScreen(
             "agrega el medicamento", "agregar el medicamento",
             "agrega la pastilla", "agregar la pastilla",
             "agrega la medicina", "agregar la medicina",
-            "nuevo medicamento", "nueva pastilla", "nuevo recordatorio de"
+            "nuevo medicamento", "nueva pastilla", "nuevo recordatorio de",
+            "pon un recordatorio de", "ponme un recordatorio",
+            "recuérdame tomar", "recuerdame tomar",
+            "programa el medicamento", "programa la pastilla",
+            "necesito tomar", "quiero recordar tomar",
+            "añade el medicamento", "añade la pastilla",
+            "registra el medicamento", "registra la pastilla"
         ).firstOrNull { t.contains(it) }
 
         if (triggerAgrMed != null) {
@@ -304,7 +332,10 @@ fun VoiceScreen(
             "elimina el medicamento", "eliminar el medicamento",
             "borra el medicamento", "borrar el medicamento",
             "elimina la pastilla", "eliminar la pastilla",
-            "borra la pastilla", "quita el recordatorio de", "elimina el recordatorio de"
+            "borra la pastilla", "quita el recordatorio de", "elimina el recordatorio de",
+            "cancela el medicamento", "cancela la pastilla",
+            "ya no tomo", "ya no voy a tomar", "quita la medicina",
+            "borra la medicina", "elimina la medicina", "ya no necesito"
         ).firstOrNull { t.contains(it) }
         if (triggerElimMed != null) {
             val nombre = t.substringAfter(triggerElimMed).trim().trim(',', '.')
@@ -316,14 +347,25 @@ fun VoiceScreen(
 
         if (t.contains("mis medicamentos") || t.contains("mis pastillas") ||
             t.contains("mis medicinas") || t.contains("qué medicamentos") ||
-            t.contains("que medicamentos") || t.contains("mis recordatorios")) {
+            t.contains("que medicamentos") || t.contains("mis recordatorios") ||
+            t.contains("qué pastillas tomo") || t.contains("que pastillas tomo") ||
+            t.contains("qué tengo que tomar") || t.contains("que tengo que tomar") ||
+            t.contains("mis medicinas del día") || t.contains("mis pills") ||
+            t.contains("cuáles son mis medicamentos") || t.contains("cuales son mis medicamentos") ||
+            t.contains("qué medicinas tengo") || t.contains("que medicinas tengo")) {
             if (medications.isEmpty()) return "No tienes recordatorios de medicamentos todavía."
             val lista = medications.joinToString(", ") { "${it.name} a las %02d:%02d".format(it.hour, it.minute) }
             return "Tus medicamentos son: $lista"
         }
 
-        val triggerHoraMed = listOf("a qué hora tomo ", "a que hora tomo ", "cuándo tomo ", "cuando tomo ")
-            .firstOrNull { t.contains(it) }
+        val triggerHoraMed = listOf(
+            "a qué hora tomo ", "a que hora tomo ",
+            "cuándo tomo ", "cuando tomo ",
+            "a qué hora es ", "a que hora es ",
+            "qué hora debo tomar ", "que hora debo tomar ",
+            "cuándo me toca ", "cuando me toca ",
+            "a qué hora toca tomar ", "a que hora toca tomar "
+        ).firstOrNull { t.contains(it) }
         if (triggerHoraMed != null) {
             val nombre = t.substringAfter(triggerHoraMed).trim().trim(',', '.')
             val med = medications.firstOrNull { it.name.lowercase().let { mn -> mn == nombre || mn.startsWith(nombre) || mn.contains(nombre) } }
@@ -333,8 +375,11 @@ fun VoiceScreen(
 
         // ── CONTACTOS ─────────────────────────────────────────────────────
 
-        val gAgregar = listOf("agrega a ","agregar a ","nuevo contacto ","agrega ","agregar ")
-            .firstOrNull { t.contains(it) }
+        val gAgregar = listOf(
+            "agrega a ","agregar a ","nuevo contacto ","agrega ","agregar ",
+            "guarda a ","guardar a ","registra a ","registrar a ",
+            "añade a ","añadir a ","anota a ","anotar a "
+        ).firstOrNull { t.contains(it) }
         if (gAgregar != null) {
             val resto = t.substringAfter(gAgregar).trim()
             val numero = extraerNumero(resto)
@@ -345,8 +390,11 @@ fun VoiceScreen(
             else { contactsViewModel.addContact(nombre, numero); "Listo, agregué a $nombre" }
         }
 
-        val gEliminar = listOf("elimina a ","eliminar a ","borra a ","borrar a ","elimina ","borra ")
-            .firstOrNull { t.contains(it) }
+        val gEliminar = listOf(
+            "elimina a ","eliminar a ","borra a ","borrar a ","elimina ","borra ",
+            "quita a ","quitar a ","borra el contacto de ","elimina el contacto de ",
+            "ya no quiero a ","borra de mis contactos a "
+        ).firstOrNull { t.contains(it) }
         if (gEliminar != null) {
             val nombre = t.substringAfter(gEliminar).trim().trim(',','.')
             if (nombre.isBlank()) return "¿A quién quieres eliminar?"
@@ -354,8 +402,12 @@ fun VoiceScreen(
             return if (eliminado != null) "Eliminé a $eliminado" else "No encontré a $nombre"
         }
 
-        val gEditar = listOf("cambia el número de ","cambia el numero de ","edita a ","editar a ")
-            .firstOrNull { t.contains(it) }
+        val gEditar = listOf(
+            "cambia el número de ","cambia el numero de ","edita a ","editar a ",
+            "actualiza el número de ","actualiza el telefono de ",
+            "nuevo número de ","nuevo numero de ",
+            "el teléfono de ","el telefono de "
+        ).firstOrNull { t.contains(it) }
         if (gEditar != null) {
             val resto = t.substringAfter(gEditar).trim()
             val numero = extraerNumero(resto)
@@ -370,8 +422,12 @@ fun VoiceScreen(
             }
         }
 
-        val gLlamar = listOf("llama a ","llamar a ","márcale a ","marca a ","llama ","marca ")
-            .firstOrNull { t.contains(it) }
+        val gLlamar = listOf(
+            "llama a ","llamar a ","márcale a ","marca a ","llama ","marca ",
+            "habla con ","hablar con ","comunícame con ","comunícame a ",
+            "quiero hablar con ","quiero llamar a ","ponme con ",
+            "marcar a ","marcarle a ","telefonea a ","llámale a "
+        ).firstOrNull { t.contains(it) }
         if (gLlamar != null) {
             val nombre = t.substringAfter(gLlamar).trim().trim(',','.')
             if (nombre.isBlank()) return "¿A quién quieres llamar?"
@@ -388,7 +444,11 @@ fun VoiceScreen(
             return "No encontré a $nombre en tus contactos"
         }
 
-        if (t.contains("mis contactos") || t.contains("qué contactos") || t.contains("que contactos")) {
+        if (t.contains("mis contactos") || t.contains("qué contactos") || t.contains("que contactos") ||
+            t.contains("quiénes tengo en contactos") || t.contains("quienes tengo en contactos") ||
+            t.contains("lista de contactos") || t.contains("mis números") ||
+            t.contains("mis numeros") || t.contains("a quién puedo llamar") ||
+            t.contains("a quien puedo llamar")) {
             val nombres = contactosDisponibles().joinToString(", ") { it.first }
             return if (nombres.isBlank()) "No tienes contactos con teléfono todavía"
             else "Tus contactos son: $nombres"
@@ -396,42 +456,71 @@ fun VoiceScreen(
 
         // ── PERFIL ────────────────────────────────────────────────────────
 
-        if (t.contains("cambia mi nombre a ") || t.contains("mi nombre es ")) {
-            val nuevo = (if (t.contains("cambia mi nombre a ")) t.substringAfter("cambia mi nombre a ")
-            else t.substringAfter("mi nombre es ")).trim().trim(',','.')
+        if (t.contains("cambia mi nombre a ") || t.contains("mi nombre es ") ||
+            t.contains("ahora me llamo ") || t.contains("me llamo ") ||
+            t.contains("quiero que me llames ") || t.contains("cámbiate mi nombre a ")) {
+            val nuevo = listOf("cambia mi nombre a ", "mi nombre es ", "ahora me llamo ",
+                "me llamo ", "quiero que me llames ", "cámbiate mi nombre a ")
+                .firstOrNull { t.contains(it) }
+                ?.let { t.substringAfter(it) }
+                ?.trim()?.trim(',','.')
+                ?: ""
             if (nuevo.isBlank()) return "¿Cómo te quieres llamar?"
             authViewModel.savePersonalInfo(nuevo, userAge, userPhone)
             return "Listo, ahora te llamas $nuevo"
         }
         if (t.contains("cambia mi teléfono a ") || t.contains("cambia mi telefono a ") ||
-            t.contains("mi teléfono es ") || t.contains("mi telefono es ")) {
+            t.contains("mi teléfono es ") || t.contains("mi telefono es ") ||
+            t.contains("mi número es ") || t.contains("mi numero es ") ||
+            t.contains("actualiza mi teléfono") || t.contains("nuevo teléfono") ||
+            t.contains("cambié mi teléfono") || t.contains("cambie mi telefono")) {
             val numero = extraerNumero(t)
             if (numero.isBlank()) return "Dime el número de teléfono"
             authViewModel.savePersonalInfo(userName, userAge, numero); return "Guardé tu teléfono"
         }
-        if (t.contains("cambia mi edad a ") || (t.contains("tengo ") && t.contains("años"))) {
+        if (t.contains("cambia mi edad a ") || (t.contains("tengo ") && t.contains("años")) ||
+            t.contains("mi edad es ") || t.contains("cumplo ") ||
+            t.contains("actualiza mi edad") || t.contains("ya tengo ")) {
             val edad = extraerNumero(t)
             if (edad.isBlank()) return "Dime tu edad"
             authViewModel.savePersonalInfo(userName, edad, userPhone); return "Guardé tu edad: $edad años"
         }
-        if (t.contains("cómo me llamo") || t.contains("como me llamo") || t.contains("mi nombre"))
+        if (t.contains("cómo me llamo") || t.contains("como me llamo") ||
+            t.contains("mi nombre") || t.contains("cuál es mi nombre") ||
+            t.contains("cual es mi nombre") || t.contains("dime mi nombre") ||
+            t.contains("quién soy") || t.contains("quien soy"))
             return if (userName.isNotBlank()) "Te llamas $userName" else "Aún no has guardado tu nombre"
-        if (t.contains("mi teléfono") || t.contains("mi telefono") || t.contains("mi número") || t.contains("mi numero"))
+        if (t.contains("mi teléfono") || t.contains("mi telefono") ||
+            t.contains("mi número") || t.contains("mi numero") ||
+            t.contains("cuál es mi teléfono") || t.contains("cual es mi telefono") ||
+            t.contains("cuál es mi número") || t.contains("cual es mi numero") ||
+            t.contains("dime mi número") || t.contains("dime mi telefono"))
             return if (userPhone.isNotBlank()) "Tu teléfono es $userPhone" else "Aún no has guardado tu teléfono"
-        if (t.contains("mi edad") || t.contains("cuántos años") || t.contains("cuantos años"))
+        if (t.contains("mi edad") || t.contains("cuántos años") || t.contains("cuantos años") ||
+            t.contains("cuántos años tengo") || t.contains("cuantos años tengo") ||
+            t.contains("qué edad tengo") || t.contains("que edad tengo"))
             return if (userAge.isNotBlank()) "Tienes $userAge años" else "Aún no has guardado tu edad"
 
         // Info médica por voz
-        if (t.contains("mi tipo de sangre") || t.contains("mi sangre")) {
+        if (t.contains("mi tipo de sangre") || t.contains("mi sangre") ||
+            t.contains("cuál es mi tipo de sangre") || t.contains("cual es mi tipo de sangre") ||
+            t.contains("qué tipo de sangre tengo") || t.contains("que tipo de sangre tengo")) {
             val bt = authViewModel.bloodType.value
             return if (bt.isNotBlank()) "Tu tipo de sangre es $bt" else "No tienes tipo de sangre guardado"
         }
-        if (t.contains("mis alergias") || t.contains("tengo alergias")) {
+        if (t.contains("mis alergias") || t.contains("tengo alergias") ||
+            t.contains("cuáles son mis alergias") || t.contains("cuales son mis alergias") ||
+            t.contains("a qué soy alérgico") || t.contains("a que soy alergico") ||
+            t.contains("qué me causa alergia") || t.contains("que me causa alergia")) {
             val al = authViewModel.allergies.value
             return if (al.isNotBlank()) "Tus alergias: $al" else "No tienes alergias guardadas"
         }
         if (t.contains("mis padecimientos") || t.contains("mis enfermedades") ||
-            t.contains("mi condición") || t.contains("mi condicion")) {
+            t.contains("mi condición") || t.contains("mi condicion") ||
+            t.contains("qué enfermedades tengo") || t.contains("que enfermedades tengo") ||
+            t.contains("cuáles son mis enfermedades") || t.contains("cuales son mis enfermedades") ||
+            t.contains("mi historial médico") || t.contains("mi historial medico") ||
+            t.contains("de qué padezco") || t.contains("de que padezco")) {
             val cond = authViewModel.conditions.value
             return if (cond.isNotBlank()) "Tus padecimientos: $cond" else "No tienes padecimientos guardados"
         }
@@ -439,12 +528,17 @@ fun VoiceScreen(
         // ── FAMILIA ───────────────────────────────────────────────────────
 
         if (t.contains("mi código") || t.contains("mi codigo") ||
-            t.contains("código de familia") || t.contains("codigo de familia"))
+            t.contains("código de familia") || t.contains("codigo de familia") ||
+            t.contains("cuál es mi código") || t.contains("cual es mi codigo") ||
+            t.contains("dime mi código") || t.contains("mi clave de familia") ||
+            t.contains("código para invitar") || t.contains("codigo para invitar"))
             return if (familyCode.isNotBlank())
                 "Tu código de familia es: ${familyCode.toList().joinToString(", ")}"
             else "Aún no tienes código de familia"
         if (t.contains("sal de la familia") || t.contains("salir de la familia") ||
-            t.contains("salirme de la familia")) {
+            t.contains("salirme de la familia") || t.contains("abandona la familia") ||
+            t.contains("déjame salir de la familia") || t.contains("dejame salir de la familia") ||
+            t.contains("quiero salir de la familia")) {
             authViewModel.leaveFamily(familyCode); return "Saliste de la familia"
         }
         if (t.contains("cambia el nombre de la familia a ") || t.contains("la familia se llama ")) {
@@ -455,28 +549,44 @@ fun VoiceScreen(
             authViewModel.saveFamilyName(nuevo); return "La familia ahora se llama $nuevo"
         }
         if (t.contains("cómo se llama mi familia") || t.contains("como se llama mi familia") ||
-            t.contains("nombre de mi familia"))
+            t.contains("nombre de mi familia") || t.contains("cuál es el nombre de mi familia") ||
+            t.contains("cual es el nombre de mi familia") || t.contains("cómo se llama la familia") ||
+            t.contains("como se llama la familia"))
             return if (familyName.isNotBlank()) "Tu familia se llama $familyName"
             else "Tu familia aún no tiene nombre"
         if (t.contains("mis familiares") || t.contains("quiénes son mis familiares") ||
-            t.contains("quienes son mis familiares") || t.contains("miembros")) {
+            t.contains("quienes son mis familiares") || t.contains("miembros") ||
+            t.contains("quién está en mi familia") || t.contains("quien esta en mi familia") ||
+            t.contains("quiénes están en mi familia") || t.contains("quienes estan en mi familia") ||
+            t.contains("mi familia") || t.contains("lista de familiares") ||
+            t.contains("quiénes son") || t.contains("quienes son")) {
             val nombres = members.map { it.name }.filter { it.isNotBlank() }.joinToString(", ")
             return if (nombres.isBlank()) "Aún no hay familiares vinculados" else "Tus familiares son: $nombres"
         }
 
         // ── GENERAL ───────────────────────────────────────────────────────
         return when {
-            t.contains("hola") || t.contains("buenas") || t.contains("buenos días") ->
+            t.contains("hola") || t.contains("buenas") || t.contains("buenos días") ||
+            t.contains("buenas tardes") || t.contains("buenas noches") ||
+            t.contains("hey") || t.contains("qué tal") || t.contains("que tal") ||
+            t.contains("cómo estás") || t.contains("como estas") ->
                 "¡Hola${if (userName.isNotBlank()) ", $userName" else ""}! ¿En qué te ayudo?"
-            t.contains("hora") ->
+            t.contains("hora") || t.contains("qué hora es") || t.contains("que hora es") ||
+            t.contains("dime la hora") ->
                 "Son las " + SimpleDateFormat("hh:mm a", Locale("es")).format(Calendar.getInstance().time)
-            t.contains("día") || t.contains("fecha") ->
+            t.contains("día") || t.contains("fecha") || t.contains("qué día es") ||
+            t.contains("que dia es") || t.contains("hoy es") ->
                 "Hoy es " + SimpleDateFormat("EEEE d 'de' MMMM", Locale("es")).format(Calendar.getInstance().time)
-            t.contains("gracias") -> "¡De nada! Para eso estoy."
-            t.contains("ayuda") || t.contains("qué puedes hacer") || t.contains("que puedes hacer") ->
-                "Puedo enviar alertas SOS, gestionar contactos, programar medicamentos y más. " +
-                "Por ejemplo di: emergencia, o envía SOS, o agrega la pastilla Omeprazol a las 8."
-            t.isBlank() -> "No te entendí, inténtalo de nuevo."
+            t.contains("gracias") || t.contains("muchas gracias") || t.contains("te lo agradezco") ->
+                "¡De nada! Para eso estoy."
+            t.contains("ayuda") || t.contains("qué puedes hacer") || t.contains("que puedes hacer") ||
+            t.contains("qué sabes hacer") || t.contains("que sabes hacer") ||
+            t.contains("cuáles son tus funciones") || t.contains("cuales son tus funciones") ||
+            t.contains("qué comandos hay") || t.contains("que comandos hay") ->
+                "Puedo enviar alertas SOS, llamar al 911, gestionar contactos, programar medicamentos, " +
+                "decirte tu información médica y de familia. Di: emergencia, llama a mamá, " +
+                "o pastilla Omeprazol a las 8."
+            t.isBlank() -> "No te escuché, inténtalo de nuevo."
             else -> "No entendí \"$frase\". Di \"ayuda\" para ver qué puedo hacer."
         }
     }
