@@ -220,11 +220,24 @@ fun VoiceScreen(
             t.contains("accidente de tráfico") || t.contains("accidente de auto")) {
             val user = User(name = userName, phone = userPhone, age = userAge, familyCode = familyCode)
             if (familyCode.isBlank()) return "No tienes familia vinculada."
+            // Capturar el mensaje completo como contexto
+            val drivingMsg = when {
+                t.contains("choqué") || t.contains("me chocaron") || t.contains("choque") -> "Tuve un choque"
+                t.contains("volcadura") -> "Volcadura de vehículo"
+                t.contains("atropellé") || t.contains("atropellaron") -> "Atropellamiento"
+                else -> "Emergencia en carretera"
+            }.let { base ->
+                // Si hay más contexto en la frase, agregarlo
+                val extras = listOf("accidente ", "choque ", "choqué ", "emergencia en carretera ")
+                    .firstOrNull { t.contains(it) }
+                    ?.let { t.substringAfter(it).trim().trim(',', '.') }
+                if (!extras.isNullOrBlank()) "$base — $extras" else base
+            }
             if (hasLocationPerm) {
-                emergencyViewModel.sendSOS(user, "Emergencia en carretera", "driving")
-                return "🚗 Alerta de conducción enviada a tu familia"
+                emergencyViewModel.sendSOS(user, drivingMsg, "driving")
+                return "🚗 Alerta enviada: \"$drivingMsg\""
             } else {
-                pendingSOS = "Emergencia en carretera"
+                pendingSOS = drivingMsg
                 locationPermLauncher.launch(arrayOf(
                     Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
                 return "🚗 Solicitando ubicación y enviando alerta"
@@ -246,20 +259,41 @@ fun VoiceScreen(
         ).firstOrNull { t.contains(it) }
 
         if (triggerSOS != null) {
-            val msg = listOf(
-                "emergencia ", "necesito ayuda ", "envía sos ", "envia sos ",
-                "manda sos ", "manda una alerta ", "socorro ", "auxilio ",
-                "me caí ", "me siento mal ", "estoy en peligro "
-            ).firstOrNull { t.contains(it) }
-                ?.let { t.substringAfter(it).trim().trim(',', '.') }
-                ?.ifBlank { null } ?: "¡Necesito ayuda!"
+            // Extraer mensaje personalizado: todo lo que viene DESPUÉS de la palabra clave
+            // Ej: "SOS me quiere dar un infarto" → "me quiere dar un infarto"
+            // Ej: "emergencia me caí en casa" → "me caí en casa"
+            val msg = run {
+                // Intentar extraer el contexto después del trigger
+                val afterTrigger = t.substringAfter(triggerSOS).trim().trim(',', '.')
+                // Si hay texto después del trigger, es el mensaje personalizado
+                if (afterTrigger.isNotBlank()) {
+                    afterTrigger.replaceFirstChar { it.uppercase() }
+                } else {
+                    // Si el trigger ES el mensaje completo, usar como mensaje
+                    // según cuál fue el trigger
+                    when (triggerSOS) {
+                        "me caí", "me caí y no me puedo levantar" -> "Me caí y necesito ayuda"
+                        "me siento mal", "no me siento bien" -> "Me siento mal"
+                        "me desmayé", "me desmaye" -> "Me desmayé"
+                        "me duele el pecho" -> "Me duele el pecho"
+                        "creo que me da un infarto" -> "Creo que me está dando un infarto"
+                        "me falta el aire" -> "Me falta el aire, necesito ayuda"
+                        "me lastimé", "me lastime" -> "Me lastimé, necesito ayuda"
+                        "me golpeé" -> "Me golpeé, necesito ayuda"
+                        "vine al suelo" -> "Me caí al suelo"
+                        "estoy en peligro" -> "Estoy en peligro"
+                        "socorro", "auxilio" -> "¡Necesito ayuda urgente!"
+                        else -> "¡Necesito ayuda!"
+                    }
+                }
+            }
 
             val user = User(name = userName, phone = userPhone, age = userAge, familyCode = familyCode)
             if (familyCode.isBlank()) return "No tienes familia vinculada. Ve a Perfil, Mis familias."
 
             if (hasLocationPerm) {
                 emergencyViewModel.sendSOS(user, msg)
-                return "🆘 Enviando alerta a tu familia con tu ubicación"
+                return "🆘 Enviando: \"$msg\""
             } else {
                 pendingSOS = msg
                 locationPermLauncher.launch(arrayOf(
