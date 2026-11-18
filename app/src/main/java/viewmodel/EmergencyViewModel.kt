@@ -36,16 +36,15 @@ class EmergencyViewModel(application: Application) : AndroidViewModel(applicatio
     private val auth          = FirebaseAuth.getInstance()
     private val fusedLocation = LocationServices.getFusedLocationProviderClient(application)
 
-    private val _state = MutableStateFlow<EmergencyState>(EmergencyState.Idle)
-    val state: StateFlow<EmergencyState> = _state
+    private val _state        = MutableStateFlow<EmergencyState>(EmergencyState.Idle)
+    val state:        StateFlow<EmergencyState>       = _state
 
-    private val _myAlerts = MutableStateFlow<List<EmergencyAlert>>(emptyList())
-    val myAlerts: StateFlow<List<EmergencyAlert>> = _myAlerts
+    private val _myAlerts     = MutableStateFlow<List<EmergencyAlert>>(emptyList())
+    val myAlerts:     StateFlow<List<EmergencyAlert>> = _myAlerts
 
     private val _familyAlerts = MutableStateFlow<List<EmergencyAlert>>(emptyList())
     val familyAlerts: StateFlow<List<EmergencyAlert>> = _familyAlerts
 
-    // Historial completo (resueltas + activas) de la familia
     private val _familyHistory = MutableStateFlow<List<EmergencyAlert>>(emptyList())
     val familyHistory: StateFlow<List<EmergencyAlert>> = _familyHistory
 
@@ -57,12 +56,23 @@ class EmergencyViewModel(application: Application) : AndroidViewModel(applicatio
 
     // ── Suscripciones ─────────────────────────────────────────────────────────
 
+    /** Suscribe con un único código (compatibilidad hacia atrás) */
     fun loadAndSubscribe(user: User) {
         val uid = uid() ?: return
         startMyAlertsListener(uid)
-        if (user.familyCode.isNotBlank()) {
-            startFamilyAlertsListener(user.familyCode, uid)
-            startFamilyHistoryListener(user.familyCode)
+        val codes = listOfNotNull(user.familyCode.ifBlank { null })
+        if (codes.isNotEmpty()) {
+            startFamilyListener(codes, uid)
+            startHistoryListener(codes)
+        }
+    }
+
+    /** Suscribe con múltiples códigos (multi-familia) */
+    fun loadAndSubscribeMulti(uid: String, familyCodes: List<String>) {
+        startMyAlertsListener(uid)
+        if (familyCodes.isNotEmpty()) {
+            startFamilyListener(familyCodes, uid)
+            startHistoryListener(familyCodes)
         }
     }
 
@@ -71,70 +81,91 @@ class EmergencyViewModel(application: Application) : AndroidViewModel(applicatio
         myListener = firestore.collection("emergencies")
             .whereEqualTo("userId", uid)
             .addSnapshotListener { snap, e ->
-                if (e != null) { Log.w("EmergVM", e.message ?: ""); return@addSnapshotListener }
+                if (e != null) return@addSnapshotListener
                 _myAlerts.value = snap?.documents
                     ?.mapNotNull { it.toObject(EmergencyAlert::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.timestamp }
-                    ?.take(20)
-                    ?: emptyList()
+                    ?.sortedByDescending { it.timestamp }?.take(20) ?: emptyList()
             }
     }
 
-    private fun startFamilyAlertsListener(familyCode: String, myUid: String) {
+    private fun startFamilyListener(codes: List<String>, myUid: String) {
         familyListener?.remove()
-        familyListener = firestore.collection("emergencies")
-            .whereEqualTo("familyCode", familyCode)
-            .addSnapshotListener { snap, e ->
-                if (e != null) { Log.w("EmergVM", e.message ?: ""); return@addSnapshotListener }
-                val all = snap?.documents
-                    ?.mapNotNull { it.toObject(EmergencyAlert::class.java)?.copy(id = it.id) }
-                    ?: emptyList()
+        val query = if (codes.size == 1)
+            firestore.collection("emergencies").whereEqualTo("familyCode", codes.first())
+        else
+            firestore.collection("emergencies").whereIn("familyCode", codes.take(10))
 
-                val active = all.filter { it.userId != myUid && !it.resolved }
-                    .sortedByDescending { it.timestamp }.take(20)
+        familyListener = query.addSnapshotListener { snap, e ->
+            if (e != null) { Log.w("EmergVM", e.message ?: ""); return@addSnapshotListener }
+            val all = snap?.documents
+                ?.mapNotNull { it.toObject(EmergencyAlert::class.java)?.copy(id = it.id) }
+                ?: emptyList()
+            val active = all.filter { it.userId != myUid && !it.resolved }
+                .sortedByDescending { it.timestamp }.take(20)
 
-                val prevIds = _familyAlerts.value.map { it.id }.toSet()
-                active.forEach { alert ->
-                    if (alert.id !in prevIds) {
-                        try {
-                            EmergencyNotificationHelper.showFamilyAlert(
-                                context = getApplication(), fromName = alert.userName,
-                                message = alert.message, hasLocation = alert.hasLocation,
-                                lat = alert.latitude, lng = alert.longitude
-                            )
-                        } catch (ex: Exception) { Log.w("EmergVM", ex.message ?: "") }
-                    }
+            // Notificar nuevas alertas
+            val prevIds = _familyAlerts.value.map { it.id }.toSet()
+            active.forEach { alert ->
+                if (alert.id !in prevIds) {
+                    try {
+                        EmergencyNotificationHelper.showFamilyAlert(
+                            context = getApplication(), fromName = alert.userName,
+                            message = alert.message, hasLocation = alert.hasLocation,
+                            lat = alert.latitude, lng = alert.longitude
+                        )
+                    } catch (ex: Exception) { Log.w("EmergVM", ex.message ?: "") }
                 }
-                _familyAlerts.value = active
             }
+            _familyAlerts.value = active
+        }
     }
 
-    private fun startFamilyHistoryListener(familyCode: String) {
+    private fun startHistoryListener(codes: List<String>) {
         historyListener?.remove()
-        historyListener = firestore.collection("emergencies")
-            .whereEqualTo("familyCode", familyCode)
-            .addSnapshotListener { snap, e ->
-                if (e != null) return@addSnapshotListener
-                _familyHistory.value = snap?.documents
-                    ?.mapNotNull { it.toObject(EmergencyAlert::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.timestamp }
-                    ?.take(50)
-                    ?: emptyList()
-            }
+        val query = if (codes.size == 1)
+            firestore.collection("emergencies").whereEqualTo("familyCode", codes.first())
+        else
+            firestore.collection("emergencies").whereIn("familyCode", codes.take(10))
+
+        historyListener = query.addSnapshotListener { snap, e ->
+            if (e != null) return@addSnapshotListener
+            _familyHistory.value = snap?.documents
+                ?.mapNotNull { it.toObject(EmergencyAlert::class.java)?.copy(id = it.id) }
+                ?.sortedByDescending { it.timestamp }?.take(50) ?: emptyList()
+        }
     }
 
     // ── Enviar SOS ────────────────────────────────────────────────────────────
 
+    /**
+     * Envía una alerta SOS.
+     * @param targetCodes null = todas las familias del usuario.
+     *                    listOf("ABC123") = solo esa familia.
+     */
     @SuppressLint("MissingPermission")
-    fun sendSOS(user: User, customMessage: String = "¡Necesito ayuda!", type: String = "sos") {
+    fun sendSOS(
+        user: User,
+        customMessage: String = "¡Necesito ayuda!",
+        type: String = "sos",
+        targetCodes: List<String>? = null
+    ) {
         if (_state.value is EmergencyState.GettingLocation ||
             _state.value is EmergencyState.Sending) return
         _state.value = EmergencyState.GettingLocation
 
+        // Resolver los códigos destino
+        val codes = targetCodes
+            ?: listOfNotNull(user.familyCode.ifBlank { null })
+
+        if (codes.isEmpty()) {
+            _state.value = EmergencyState.Error("No tienes familia vinculada")
+            return
+        }
+
         val cb = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 fusedLocation.removeLocationUpdates(this)
-                sendAlert(user, customMessage, result.lastLocation, type)
+                sendToFamilies(user, customMessage, result.lastLocation, type, codes)
             }
         }
         try {
@@ -144,49 +175,63 @@ class EmergencyViewModel(application: Application) : AndroidViewModel(applicatio
             android.os.Handler(Looper.getMainLooper()).postDelayed({
                 fusedLocation.removeLocationUpdates(cb)
                 if (_state.value is EmergencyState.GettingLocation)
-                    sendAlert(user, customMessage, null, type)
+                    sendToFamilies(user, customMessage, null, type, codes)
             }, 8_000L)
         } catch (e: Exception) {
-            Log.w("EmergVM", "GPS: ${e.message}")
-            sendAlert(user, customMessage, null, type)
+            sendToFamilies(user, customMessage, null, type, codes)
         }
     }
 
-    private fun sendAlert(user: User, message: String, location: Location?, type: String) {
+    private fun sendToFamilies(
+        user: User, message: String, location: Location?,
+        type: String, codes: List<String>
+    ) {
         _state.value = EmergencyState.Sending
         val uid = uid() ?: run { _state.value = EmergencyState.Error("Sesión no iniciada"); return }
 
-        val alert = EmergencyAlert(
-            userId      = uid,
-            userName    = user.name.ifBlank { "Usuario" },
-            userPhone   = user.phone,
-            familyCode  = user.familyCode,
-            latitude    = location?.latitude  ?: 0.0,
-            longitude   = location?.longitude ?: 0.0,
-            hasLocation = location != null,
-            message     = message.ifBlank { "¡Necesito ayuda!" },
-            timestamp   = System.currentTimeMillis(),
-            resolved    = false,
-            type        = type,
-            bloodType   = user.bloodType,
-            conditions  = user.conditions,
-            allergies   = user.allergies
-        )
-        val ref = firestore.collection("emergencies").document()
-        ref.set(alert.copy(id = ref.id))
-            .addOnSuccessListener {
-                _state.value = EmergencyState.Sent(alert.copy(id = ref.id))
-                try {
-                    EmergencyNotificationHelper.showSOSSent(
-                        context = getApplication(), hasLocation = location != null,
-                        lat = location?.latitude ?: 0.0, lng = location?.longitude ?: 0.0
-                    )
-                } catch (ex: Exception) { Log.w("EmergVM", ex.message ?: "") }
-            }
-            .addOnFailureListener { _state.value = EmergencyState.Error(it.message ?: "Error al enviar") }
+        var sent = 0
+        var lastSaved: EmergencyAlert? = null
+
+        codes.forEach { code ->
+            val alert = EmergencyAlert(
+                userId      = uid,
+                userName    = user.name.ifBlank { "Usuario" },
+                userPhone   = user.phone,
+                familyCode  = code,
+                latitude    = location?.latitude  ?: 0.0,
+                longitude   = location?.longitude ?: 0.0,
+                hasLocation = location != null,
+                message     = message.ifBlank { "¡Necesito ayuda!" },
+                timestamp   = System.currentTimeMillis(),
+                resolved    = false,
+                type        = type,
+                bloodType   = user.bloodType,
+                conditions  = user.conditions,
+                allergies   = user.allergies
+            )
+            val ref = firestore.collection("emergencies").document()
+            ref.set(alert.copy(id = ref.id))
+                .addOnSuccessListener {
+                    sent++
+                    lastSaved = alert.copy(id = ref.id)
+                    if (sent == codes.size) {
+                        _state.value = EmergencyState.Sent(lastSaved!!)
+                        try {
+                            EmergencyNotificationHelper.showSOSSent(
+                                context = getApplication(),
+                                hasLocation = location != null,
+                                lat = location?.latitude  ?: 0.0,
+                                lng = location?.longitude ?: 0.0
+                            )
+                        } catch (ex: Exception) { Log.w("EmergVM", ex.message ?: "") }
+                    }
+                }
+                .addOnFailureListener {
+                    _state.value = EmergencyState.Error(it.message ?: "Error al enviar")
+                }
+        }
     }
 
-    /** Llama al 911 directamente */
     fun call911() {
         try {
             getApplication<Application>().startActivity(

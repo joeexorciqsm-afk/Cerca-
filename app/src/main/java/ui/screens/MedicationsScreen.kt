@@ -29,10 +29,14 @@ fun MedicationsScreen(
     val medications    by viewModel.medications.collectAsState()
     val familyMeds     by viewModel.familyMedications.collectAsState()
     val familyMembers  by authViewModel.familyMembers.collectAsState()
+    val familyGroups   by authViewModel.familyGroups.collectAsState()
     val loading        by viewModel.loading.collectAsState()
     val message        by viewModel.message.collectAsState()
     var showForm       by remember { mutableStateOf(false) }
     var selectedTab    by remember { mutableStateOf(0) }
+
+    // Familia seleccionada para el recordatorio: null = todas
+    var selectedFamilyCode by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) { viewModel.loadMedications() }
     LaunchedEffect(familyMembers) {
@@ -43,7 +47,6 @@ fun MedicationsScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // ── Cabecera ──────────────────────────────────────────────────────
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Text("💊 Medicamentos", style = MaterialTheme.typography.headlineMedium,
@@ -61,7 +64,6 @@ fun MedicationsScreen(
                 modifier = Modifier.padding(horizontal = 16.dp))
         }
 
-        // ── Tabs ──────────────────────────────────────────────────────────
         TabRow(selectedTabIndex = selectedTab) {
             Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 },
                 text = { Text("💊 Míos") })
@@ -71,15 +73,22 @@ fun MedicationsScreen(
 
         HorizontalDivider()
 
-        // ── Formulario ────────────────────────────────────────────────────
         if (showForm && selectedTab == 0) {
+            // Selector de familia para el nuevo recordatorio
+            FamilySelector(
+                groups       = familyGroups,
+                selectedCode = selectedFamilyCode,
+                onSelect     = { selectedFamilyCode = it }
+            )
             AddMedicationForm(
                 ownerName = authViewModel.userName.collectAsState().value,
                 onAdd    = { med ->
-                    val familyCode = authViewModel.familyCode.value
-                    val ownerName  = authViewModel.userName.value
+                    val ownerName = authViewModel.userName.value
+                    // Si hay una familia seleccionada → solo ese código
+                    // Si null → código propio (para notificar a todas las familias)
+                    val targetCode = selectedFamilyCode ?: authViewModel.myFamilyCode.value
                     viewModel.addMedication(
-                        med.copy(familyCode = familyCode, ownerName = ownerName),
+                        med.copy(familyCode = targetCode, ownerName = ownerName),
                         ownerName
                     )
                     showForm = false
