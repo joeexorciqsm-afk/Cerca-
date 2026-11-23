@@ -206,28 +206,43 @@ class AuthViewModel : ViewModel() {
             _familyMessage.value = "Ya perteneces a esta familia"; return
         }
 
-        // Verificar que el código existe
-        firestore.collection("users").whereEqualTo("familyCode", clean).limit(1).get()
-            .addOnSuccessListener { snap ->
-                if (snap.isEmpty) { _familyMessage.value = "Código no encontrado"; return@addOnSuccessListener }
+        fun doJoin() {
+            firestore.collection("users").document(uid)
+                .update("familyCodes", FieldValue.arrayUnion(clean))
+                .addOnSuccessListener {
+                    _familyMessage.value = "✅ ¡Te uniste a la familia!"
+                    subscribeToFamily(clean)
+                }
+                .addOnFailureListener {
+                    firestore.collection("users").document(uid)
+                        .set(mapOf("familyCodes" to listOf(clean)), SetOptions.merge())
+                        .addOnSuccessListener {
+                            _familyMessage.value = "✅ ¡Te uniste a la familia!"
+                            subscribeToFamily(clean)
+                        }
+                }
+        }
 
-                // Agregar el código al array del usuario
-                firestore.collection("users").document(uid)
-                    .update("familyCodes", FieldValue.arrayUnion(clean))
-                    .addOnSuccessListener {
-                        _familyMessage.value = "✅ ¡Te uniste a la familia!"
-                        subscribeToFamily(clean)
-                    }
-                    .addOnFailureListener {
-                        // Si el campo no existe aún, créalo
-                        firestore.collection("users").document(uid)
-                            .set(mapOf("familyCodes" to listOf(clean)), SetOptions.merge())
-                            .addOnSuccessListener {
-                                _familyMessage.value = "✅ ¡Te uniste a la familia!"
-                                subscribeToFamily(clean)
+        // Buscar en families/ primero, luego en usuarios legacy
+        firestore.collection("families").document(clean).get()
+            .addOnSuccessListener { familyDoc ->
+                if (familyDoc.exists()) {
+                    doJoin()
+                } else {
+                    firestore.collection("users").whereEqualTo("familyCode", clean).limit(1).get()
+                        .addOnSuccessListener { snap ->
+                            if (snap.isEmpty) {
+                                _familyMessage.value = "Código no encontrado"
+                            } else {
+                                firestore.collection("families").document(clean)
+                                    .set(mapOf("name" to "Mi familia"), SetOptions.merge())
+                                doJoin()
                             }
-                    }
+                        }
+                        .addOnFailureListener { _familyMessage.value = it.message }
+                }
             }
+            .addOnFailureListener { _familyMessage.value = it.message }
             .addOnFailureListener { _familyMessage.value = it.message }
     }
 
